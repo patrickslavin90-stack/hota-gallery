@@ -68,6 +68,21 @@ h2, h3, h4 { margin: 0; font-weight: 500; }
 .conn[data-kind="local"] i { background: var(--warn); }
 .conn[data-kind="error"] i { background: var(--danger); }
 .clock { color: var(--text-2); }
+.lights {
+  display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px;
+  border: 1px solid var(--line-2); border-radius: var(--pill); background: var(--surface);
+  color: var(--text-2); font-size: 12px; white-space: nowrap;
+}
+.lights:hover { border-color: var(--muted); color: var(--text); }
+.lights i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.lights[data-state="checking"] i { animation: lights-pulse 1s ease-in-out infinite; }
+.lights[data-state="ok"] { border-color: rgba(61,220,151,.4); color: #6ff0b6; }
+.lights[data-state="ok"] i { background: #3ddc97; }
+.lights[data-state="part"] { border-color: rgba(252,187,0,.45); color: var(--warn); }
+.lights[data-state="part"] i { background: var(--warn); }
+.lights[data-state="bad"] { border-color: rgba(240,51,108,.5); color: #ff8fa8; }
+.lights[data-state="bad"] i { background: var(--accent-2); }
+@keyframes lights-pulse { 50% { opacity: .3; } }
 
 /* ---------- shared controls ---------- */
 .btn {
@@ -419,6 +434,8 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .top { position: sticky; top: 0; z-index: 20; gap: 10px; padding: 0 12px; }
   .status .clock { display: none; }
   .conn span { display: none; }
+  .lights span { display: none; }
+  .lights { padding: 0 9px; }
   .live { grid-template-columns: 1fr; height: auto; }
   .stage { border-right: 0; }
   /* The unfolded building is ~3.5:1, so size to the width plus toolbar room. */
@@ -436,6 +453,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
   * { transition: none !important; }
   .dlg, .dlg::backdrop, .ps-list { animation: none !important; }
   .alert-wrap, .alert { transition: none !important; }
+  .lights i { animation: none !important; }
 }
 
 a.link { color: var(--accent-2); text-decoration: underline; text-underline-offset: 2px; }

@@ -244,12 +244,17 @@
     return elev && builtinBuilding && !ls.some(l => l.name === "Building") ? [builtinBuilding, ...ls] : ls;
   };
 
+  // Where the controller is: "this computer" when served from localhost
+  // (e.g. a test run on a laptop), otherwise its address on the network.
+  const isLocalHost = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(location.hostname);
   function setConn() {
     conn.dataset.kind = api.kind;
     conn.querySelector("span").textContent = api.kind === "controller"
-      ? `Connected to ${cfg.device_name || "controller"}`
+      ? (isLocalHost ? "Controller on this computer" : `Controller at ${location.hostname}`)
       : "Demo: changes are saved in this browser only";
-    conn.title = api.kind === "controller" ? "Changes go straight to the lighting controller." : "No controller found. Nothing here affects the real building.";
+    conn.title = api.kind === "controller"
+      ? `This page is talking to the lighting controller "${cfg.device_name || "unnamed"}" at ${location.host}. Whether its lights are reachable is shown by the Lights indicator.`
+      : "No controller found. Nothing here affects the real building.";
   }
   setConn();
 
@@ -1491,6 +1496,34 @@
   let artnetScan = null;
   let artnetScanning = false;
 
+  // Art-Net check shared by the header "Lights" pill and the Settings card.
+  // Runs on load (controller only), every 5 minutes, and on "Scan again".
+  const lightsEl = $("#lights");
+  function updateLights() {
+    if (api.kind !== "controller") { lightsEl.hidden = true; return; }
+    lightsEl.hidden = false;
+    if (!artnetScan) { lightsEl.dataset.state = "checking"; lightsEl.querySelector("span").textContent = "Checking lights…"; lightsEl.title = "Looking for Art-Net nodes on the network."; return; }
+    const unis = patchUniverses().map(u => u.universe);
+    const answering = new Set(artnetScan.nodes.flatMap(n => n.universes_out || []));
+    const ok = unis.filter(u => answering.has(u)).length;
+    lightsEl.dataset.state = ok === unis.length ? "ok" : ok ? "part" : "bad";
+    lightsEl.querySelector("span").textContent = ok === 0 ? "No lights answering" : `Lights: ${ok}/${unis.length} universes`;
+    lightsEl.title = `${artnetScan.nodes.length} Art-Net node${artnetScan.nodes.length === 1 ? "" : "s"} replied at ${artnetScan.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Open Settings for details.`;
+  }
+  lightsEl.addEventListener("click", () => showTab("settings"));
+  async function scanArtnet() {
+    if (artnetScanning || api.kind !== "controller") return null;
+    artnetScanning = true; updateLights();
+    try {
+      const nodes = await api.artnetDiscover();
+      artnetScan = { at: new Date(), nodes };
+      return nodes;
+    } finally {
+      artnetScanning = false; updateLights();
+      if (!tabs.settings.hidden) renderArtnet();
+    }
+  }
+
   // Universes the patch uses - same numbers as /api/artnet/status, but
   // worked out locally so the demo can show the table too.
   function patchUniverses() {
@@ -1568,22 +1601,14 @@
 
     async function runScan() {
       if (artnetScanning) return;
-      artnetScanning = true;
       scan.disabled = true; scan.textContent = "Scanning…";
       try {
-        const nodes = await api.artnetDiscover();
-        artnetScan = { at: new Date(), nodes };
-        artnetScanning = false;
-        await renderArtnet();
-        if (!nodes.length) slideAlert($("#artnetCard .alert-slot"), "No Art-Net nodes replied", "Check the network interface under Device, and that the nodes are powered and plugged into the gallery network.");
+        const nodes = await scanArtnet();
+        if (nodes && !nodes.length) slideAlert($("#artnetCard .alert-slot"), "No Art-Net nodes replied", "Check the network interface under Device, and that the nodes are powered and plugged into the gallery network.");
       } catch (e) {
-        artnetScanning = false;
-        scan.disabled = false; scan.textContent = artnetScan ? "Scan again" : "Scan for nodes";
-        slideAlert(alertSlot, "The scan didn't run", errText(e));
+        slideAlert($("#artnetCard .alert-slot"), "The scan didn't run", errText(e));
       }
     }
-    // First visit on the real controller: check straight away.
-    if (api.kind === "controller" && !artnetScan && !artnetScanning) runScan();
   }
   function renderConfigCard() {
     const file = h("input", { type: "file", accept: "application/json,.json", hidden: true });
@@ -1649,4 +1674,9 @@
   resize(); fitView("all");
   showTab(location.hash.slice(1) || "live");
   requestAnimationFrame(frame);
+  updateLights();
+  if (api.kind === "controller") {
+    scanArtnet().catch(() => {});
+    setInterval(() => { if (!document.hidden) scanArtnet().catch(() => {}); }, 5 * 60 * 1000);
+  }
 })();
