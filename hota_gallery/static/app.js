@@ -1753,6 +1753,23 @@
     renderLayoutSelect(); renderSelectionTools(); renderPresets(); selectionChanged();
     fitView("all");
   }
+  // Export GIF: the default look's matching preset (if any) names the concept.
+  $("#exportGif").addEventListener("click", () => {
+    const def = cfg.current_look.default || HotaEngine.OFF;
+    const presets = (cfg.presets || []).slice().sort((a, b) => a.slot - b.slot);
+    const i = presets.findIndex(p => JSON.stringify(p.look) === JSON.stringify(def));
+    const own = Object.keys(cfg.current_look.fixtures || {}).length;
+    const subtitle = [lookSummary(def), own ? `${own} fixture${own > 1 ? "s" : ""} with their own look` : null,
+      new Date().toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })].filter(Boolean).join(", ");
+    HotaExport.open({
+      cfg, elev, layout: currentLayout(), view: currentView || "all",
+      title: i >= 0 ? presetName(presets[i], i) : "Untitled concept",
+      subtitle,
+      onDone: msg => toast(msg),
+      onError: msg => toast(`The GIF couldn't be made: ${msg}`, true),
+    });
+  });
+
   renderLayoutSelect();
   renderSelectionTools();
   renderPresets();
