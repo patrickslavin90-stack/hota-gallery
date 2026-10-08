@@ -233,8 +233,10 @@
     const cfg = structuredClone(opts.cfg);
     const engine = HotaEngine.createEngine(cfg);
     engine.setCurrentLook(cfg.current_look);
-    const logo = await loadLogo();
-    try { await document.fonts.load(`500 30px Rubik`); await document.fonts.load(`400 13px Rubik`); } catch { /* fallback font */ }
+    // Open straight away; the logo and fonts are usually preloaded, and if
+    // not, the preview redraws the moment they arrive.
+    let logo = null;
+    const assetsReady = preload().then(l => { logo = l; if (dlg.isConnected) rebuild(); });
 
     const views = opts.elev && opts.layout && opts.layout.name === "Building" ? ["all", ...opts.elev.elevations.map(e => e.name)] : ["all"];
     const state = { title: opts.title || "Untitled concept", subtitle: opts.subtitle || "", view: views.includes(opts.view) ? opts.view : "all", size: "medium", seconds: suggestLength(cfg.current_look) };
@@ -282,14 +284,32 @@
     const job = () => ({ cfg, elev: opts.elev, layout: opts.layout, view: state.view, title: state.title, subtitle: state.subtitle, logo, engine });
     const rebuild = () => { previewR = makeRenderer(job(), 480, 270); };
     rebuild();
+    // Follow the live look while the dialog is open: if it changes (a save
+    // landing late, the schedule, another browser), the preview and the GIF
+    // switch to it within half a second - no need to close and reopen.
+    let lookJSON = JSON.stringify(cfg.current_look), lastCheck = 0;
+    function syncLook() {
+      if (!opts.getCurrentLook) return;
+      const now = opts.getCurrentLook();
+      const j = JSON.stringify(now);
+      if (j === lookJSON) return;
+      lookJSON = j;
+      cfg.current_look = structuredClone(now);
+      engine.setCurrentLook(cfg.current_look);
+      if (opts.describe) { state.subtitle = opts.describe(cfg.current_look); if (!subEdited) subIn.value = state.subtitle; }
+      rebuild();
+    }
+    let subEdited = false;
     (function loop() {
-      const t = ((performance.now() - t0) / 1000) % state.seconds;
+      const nowMs = performance.now();
+      if (nowMs - lastCheck > 500) { lastCheck = nowMs; syncLook(); }
+      const t = ((nowMs - t0) / 1000) % state.seconds;
       previewR.draw(t);
       const pc = preview.getContext("2d"); pc.drawImage(previewR.canvas, 0, 0);
       raf = requestAnimationFrame(loop);
     })();
     nameIn.addEventListener("input", () => { state.title = nameIn.value.trim(); rebuild(); });
-    subIn.addEventListener("input", () => { state.subtitle = subIn.value.trim(); rebuild(); });
+    subIn.addEventListener("input", () => { subEdited = true; state.subtitle = subIn.value.trim(); rebuild(); });
     viewSel.addEventListener("change", () => { state.view = viewSel.value; rebuild(); });
     sizeSel.addEventListener("change", () => { state.size = sizeSel.value; updateEstimate(); });
     secIn.addEventListener("change", () => { state.seconds = clamp(+secIn.value || 4, 1, 20); secIn.value = state.seconds; t0 = performance.now(); updateEstimate(); });
@@ -305,6 +325,8 @@
     dlg.addEventListener("cancel", e => { e.preventDefault(); close(); });
 
     createBtn.addEventListener("click", async () => {
+      await assetsReady; // never encode a card without its logo
+      syncLook(); // encode exactly what's live right now
       createBtn.disabled = true; [nameIn, subIn, viewSel, sizeSel, secIn].forEach(x => { x.disabled = true; });
       cancelBtn.textContent = "Cancel";
       bar.hidden = false; result.hidden = true; status.textContent = "Rendering…";
@@ -337,5 +359,17 @@
     });
   }
 
-  global.HotaExport = { open };
+  // Logo + card fonts, fetched once in the background at page load so the
+  // dialog never waits on them (they'd queue behind preview polling).
+  let preloaded = null;
+  function preload() {
+    if (!preloaded) preloaded = Promise.all([
+      loadLogo(),
+      document.fonts ? document.fonts.load("500 30px Rubik").catch(() => null) : null,
+      document.fonts ? document.fonts.load("400 13px Rubik").catch(() => null) : null,
+    ]).then(([l]) => l);
+    return preloaded;
+  }
+
+  global.HotaExport = { open, preload };
 })(window);

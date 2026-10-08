@@ -796,7 +796,7 @@
   // Preview polling doubles as the connection check: a few failures in a
   // row mark the controller as lost (red header, polling slows to every 2 s
   // so the console doesn't flood); the first success reconnects.
-  let previewBusy = false, failStreak = 0, pollCount = 0;
+  let previewBusy = false, failStreak = 0, pollCount = 0, lastLookEdit = 0;
   async function pollPreview() {
     if (previewBusy) return;
     previewBusy = true;
@@ -824,6 +824,7 @@
   // Keeps the "own look" notice honest when the scheduler, randomiser or
   // another browser changes per-fixture looks behind this page's back.
   async function refreshCurrentLook() {
+    if (Date.now() - lastLookEdit < 3000) return; // a save may still be on its way
     try {
       const st = await (await fetch("/api/status", { cache: "no-store" })).json();
       if (JSON.stringify(st.current_look) !== JSON.stringify(cfg.current_look)) { cfg.current_look = st.current_look; updateTarget(); }
@@ -1173,12 +1174,23 @@
   }
 
   // -- live look editor -------------------------------------------------------
-  const sendLook = latestOnly(async (look, keys) => {
+  const sendLookRemote = latestOnly(async (look, keys) => {
     if (keys.length) cfg.current_look = await api.putSelection(keys, look);
     else cfg.current_look.default = await api.putLook(look);
     updateTarget();
     $("#selRevert").hidden = !live.selection.size || ![...live.selection].some(k => cfg.current_look.fixtures[k]);
   });
+  // Update the page's own copy straight away, then save in the background:
+  // anything that reads cfg.current_look right after a click (Export GIF,
+  // the target box, presets) sees the look just picked, not the one before
+  // the controller replied. The reply (or the 5 s status refresh) settles it.
+  function sendLook(look, keys) {
+    lastLookEdit = Date.now();
+    if (keys.length) for (const k of keys) cfg.current_look.fixtures[k] = clone(look);
+    else cfg.current_look.default = clone(look);
+    updateTarget();
+    sendLookRemote(look, keys);
+  }
   const liveEditor = LookEditor($("#liveLook"), look => sendLook(look, [...live.selection]));
   function targetLook() {
     const first = [...live.selection][0];
@@ -1753,18 +1765,24 @@
     renderLayoutSelect(); renderSelectionTools(); renderPresets(); selectionChanged();
     fitView("all");
   }
+  HotaExport.preload();
   // Export GIF: the default look's matching preset (if any) names the concept.
+  const describeLook = cl => {
+    const own = Object.keys(cl.fixtures || {}).length;
+    return [lookSummary(cl.default || HotaEngine.OFF), own ? `${own} fixture${own > 1 ? "s" : ""} with their own look` : null,
+      new Date().toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })].filter(Boolean).join(", ");
+  };
   $("#exportGif").addEventListener("click", () => {
     const def = cfg.current_look.default || HotaEngine.OFF;
     const presets = (cfg.presets || []).slice().sort((a, b) => a.slot - b.slot);
     const i = presets.findIndex(p => JSON.stringify(p.look) === JSON.stringify(def));
-    const own = Object.keys(cfg.current_look.fixtures || {}).length;
-    const subtitle = [lookSummary(def), own ? `${own} fixture${own > 1 ? "s" : ""} with their own look` : null,
-      new Date().toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })].filter(Boolean).join(", ");
+    if (api.kind === "controller") refreshCurrentLook(); // pick up anything changed elsewhere
     HotaExport.open({
       cfg, elev, layout: currentLayout(), view: currentView || "all",
       title: i >= 0 ? presetName(presets[i], i) : "Untitled concept",
-      subtitle,
+      subtitle: describeLook(cfg.current_look),
+      getCurrentLook: () => cfg.current_look,
+      describe: describeLook,
       onDone: msg => toast(msg),
       onError: msg => toast(`The GIF couldn't be made: ${msg}`, true),
     });
