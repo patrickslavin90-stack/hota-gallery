@@ -33,10 +33,24 @@
   const DAY_LABEL = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
   const prefersReduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Identical messages merge into one with a count instead of stacking.
+  const openToasts = new Map();
   function toast(msg, isErr) {
-    const t = h("div", { class: "toast" + (isErr ? " err" : ""), text: msg });
+    const key = (isErr ? "e|" : "i|") + msg, ms = isErr ? 9000 : 3200;
+    const existing = openToasts.get(key);
+    if (existing) {
+      existing.count++;
+      existing.badge.textContent = `×${existing.count}`;
+      clearTimeout(existing.timer);
+      existing.timer = setTimeout(existing.close, ms);
+      return;
+    }
+    const badge = h("span", { class: "toast-count" });
+    const t = h("div", { class: "toast" + (isErr ? " err" : "") }, h("span", { text: msg }), badge);
+    const entry = { count: 1, badge, close: () => { t.remove(); openToasts.delete(key); } };
+    entry.timer = setTimeout(entry.close, ms);
+    openToasts.set(key, entry);
     $("#toasts").append(t);
-    setTimeout(() => t.remove(), isErr ? 9000 : 3200);
   }
   // Themed replacement for prompt()/confirm(). Resolves to the entered
   // text (input dialogs), true (confirm dialogs), or null if cancelled.
@@ -68,7 +82,11 @@
     });
   }
 
-  const errText = e => (e && e.message ? e.message : String(e)).replace(/^\s+- /gm, "• ");
+  const errText = e => {
+    // fetch() rejects with a bare TypeError when nothing answers at all.
+    if (e instanceof TypeError && /fetch|network|load/i.test(e.message)) return "Can't reach the controller. Check it's running and on the network.";
+    return (e && e.message ? e.message : String(e)).replace(/^\s+- /gm, "• ");
+  };
 
   // ===================================================================
   // Pill dropdowns: every <select> gets a styled trigger + listbox popover
@@ -246,8 +264,15 @@
 
   // Where the controller is: "this computer" when served from localhost
   // (e.g. a test run on a laptop), otherwise its address on the network.
+  let offline = false; // set by the preview poll when the controller stops answering
   const isLocalHost = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(location.hostname);
   function setConn() {
+    if (offline) {
+      conn.dataset.kind = "error";
+      conn.querySelector("span").textContent = "Lost connection to the controller, retrying";
+      conn.title = `Nothing is answering at ${location.host}. The drawing is frozen on the last frame it received.`;
+      return;
+    }
     conn.dataset.kind = api.kind;
     conn.querySelector("span").textContent = api.kind === "controller"
       ? (isLocalHost ? "Controller on this computer" : `Controller at ${location.hostname}`)
@@ -768,15 +793,49 @@
   }
 
   // Preview: polled from the controller, or computed in-page for the demo.
-  let previewBusy = false;
+  // Preview polling doubles as the connection check: a few failures in a
+  // row mark the controller as lost (red header, polling slows to every 2 s
+  // so the console doesn't flood); the first success reconnects.
+  let previewBusy = false, failStreak = 0, pollCount = 0;
   async function pollPreview() {
     if (previewBusy) return;
     previewBusy = true;
-    try { live.preview = await api.getPreview(); }
-    catch { /* controller hiccup - keep the last frame */ }
+    try {
+      live.preview = await api.getPreview();
+      failStreak = 0;
+      if (offline) await goOnline();
+    } catch {
+      if (++failStreak >= 5 && !offline && api.kind === "controller") goOffline();
+    }
     previewBusy = false;
   }
-  if (api.kind === "controller") setInterval(() => { if (!document.hidden && !tabs.live.hidden) pollPreview(); }, 100);
+  function goOffline() {
+    offline = true;
+    setConn();
+    toast(`Lost connection to the controller at ${location.host}. Changes won't save until it's back; this page keeps retrying.`, true);
+  }
+  async function goOnline() {
+    offline = false;
+    try { cfg = await api.getConfig(); indexConfig(); } catch { /* keep what we had */ }
+    setConn();
+    renderLayoutSelect(); renderSelectionTools(); renderPresets(); selectionChanged();
+    toast("Reconnected to the controller.");
+  }
+  // Keeps the "own look" notice honest when the scheduler, randomiser or
+  // another browser changes per-fixture looks behind this page's back.
+  async function refreshCurrentLook() {
+    try {
+      const st = await (await fetch("/api/status", { cache: "no-store" })).json();
+      if (JSON.stringify(st.current_look) !== JSON.stringify(cfg.current_look)) { cfg.current_look = st.current_look; updateTarget(); }
+    } catch { /* the preview poll reports outages */ }
+  }
+  if (api.kind === "controller") {
+    (function loop() {
+      if (offline || (!document.hidden && !tabs.live.hidden)) pollPreview();
+      if (!offline && ++pollCount % 50 === 0) refreshCurrentLook(); // every ~5 s
+      setTimeout(loop, offline ? 2000 : 100);
+    })();
+  }
   function frame() {
     if (!tabs.live.hidden) {
       if (api.kind === "local") pollPreview();
@@ -1078,19 +1137,46 @@
     $("#selCount").textContent = n ? `${n} selected` : "";
     updateSelChips();
     $("#selRevert").hidden = !n || ![...live.selection].some(k => cfg.current_look.fixtures[k]);
-    const t = $("#target");
-    t.classList.toggle("sel", n > 0);
-    t.replaceChildren(
-      h("b", { text: n ? `Editing ${n} selected fixture${n > 1 ? "s" : ""}` : "Editing the default look" }),
-      h("p", { text: n ? "Changes below apply only to the selection." : "Applies to every fixture without its own look. Select fixtures on the drawing to give them their own." }),
-    );
+    updateTarget();
     loadEditorFromTarget();
+  }
+
+  // The box above the look panel: what the edits below will affect. When
+  // editing the default, warn if fixtures with their own look will ignore it.
+  function updateTarget() {
+    const n = live.selection.size;
+    const t = $("#target");
+    const own = Object.keys(cfg.current_look.fixtures || {}).filter(k => fixtureIndex.has(k));
+    const total = cfg.fixtures.length;
+    t.classList.toggle("sel", n > 0);
+    t.classList.toggle("warn", !n && own.length > 0);
+    if (n) {
+      t.replaceChildren(h("b", { text: `Editing ${n} selected fixture${n > 1 ? "s" : ""}` }), h("p", { text: "Changes below apply only to the selection." }));
+      return;
+    }
+    if (!own.length) {
+      t.replaceChildren(h("b", { text: "Editing the default look" }), h("p", { text: "Applies to every fixture without its own look. Select fixtures on the drawing to give them their own." }));
+      return;
+    }
+    t.replaceChildren(
+      h("b", { text: "Editing the default look" }),
+      h("p", { text: own.length === total
+        ? `All ${total} fixtures have their own look, so changes here won't show until you select them or revert them.`
+        : `${own.length} of ${total} fixtures have their own look and won't follow these changes. Select them to edit them.` }),
+      h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" },
+        h("button", { type: "button", class: "btn sm", text: "Select them", onclick: () => selectKeys(own) }),
+        h("button", { type: "button", class: "btn sm", text: "Revert all to default", onclick: async () => {
+          try { cfg.current_look = await api.putSelection(own, null); toast("Every fixture now follows the default look."); updateTarget(); }
+          catch (e) { toast(errText(e), true); }
+        } })),
+    );
   }
 
   // -- live look editor -------------------------------------------------------
   const sendLook = latestOnly(async (look, keys) => {
     if (keys.length) cfg.current_look = await api.putSelection(keys, look);
     else cfg.current_look.default = await api.putLook(look);
+    updateTarget();
     $("#selRevert").hidden = !live.selection.size || ![...live.selection].some(k => cfg.current_look.fixtures[k]);
   });
   const liveEditor = LookEditor($("#liveLook"), look => sendLook(look, [...live.selection]));

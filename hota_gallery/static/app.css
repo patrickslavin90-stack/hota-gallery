@@ -268,6 +268,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   background: var(--bg); border: 1px solid var(--line-2); border-left: 3px solid var(--muted);
 }
 .target.sel { border-left-color: var(--accent); }
+.target.warn { border-left-color: var(--warn); }
+.target.warn p { color: #e9cf86; }
 .target b { font-weight: 500; }
 .target p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 
@@ -422,6 +424,9 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .toasts { position: fixed; z-index: 50; right: 16px; bottom: 16px; display: grid; gap: 8px; max-width: min(420px, calc(100% - 32px)); }
 .toast { background: var(--surface-2); border: 1px solid var(--line-2); border-left: 3px solid var(--ok); border-radius: 10px; padding: 9px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4); white-space: pre-wrap; }
 .toast.err { border-left-color: var(--danger); }
+.toast { display: flex; align-items: flex-start; gap: 10px; }
+.toast-count:empty { display: none; }
+.toast-count { margin-left: auto; flex-shrink: 0; padding: 0 8px; border-radius: var(--pill); background: rgba(255,255,255,.1); font-size: 12px; font-weight: 500; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 1000px) {
