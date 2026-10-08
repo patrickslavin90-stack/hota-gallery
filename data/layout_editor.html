@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HOTA Gallery - Layout Editor (offline)</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; background: #111; color: #eee; margin: 0; display: flex; }
+  #canvasWrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  canvas { background: #000; border: 1px solid #333; cursor: grab; }
+  #panel { width: 320px; padding: 16px; background: #1a1a1a; border-left: 1px solid #333; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p.hint { font-size: 12px; color: #999; line-height: 1.5; }
+  button { background: #333; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 10px 12px; cursor: pointer; width: 100%; margin: 12px 0 6px; font-size: 14px; }
+  button:hover { background: #444; }
+  #status { font-size: 12px; color: #6c6; margin-top: 10px; min-height: 18px; }
+  #selected { font-size: 12px; color: #e0c84a; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div id="canvasWrap"><canvas id="layout" width="900" height="600"></canvas></div>
+
+<div id="panel">
+  <h1>Layout Editor (offline)</h1>
+  <p class="hint">
+    Every dot is its own fixture - click to select/deselect one, or drag on
+    empty space to rubber-band select several at once (adds to whatever's
+    already selected). Drag any selected dot to move the whole selection
+    together - that's how to grab a whole strip: rubber-band around its
+    dots first, then drag. This file works completely offline and never
+    talks to the Pi - when you're happy, click Download and send the CSV
+    back.
+  </p>
+  <button id="btnDownload">Download CSV</button>
+  <button id="btnReset">Reset all positions</button>
+  <button id="btnClearSelection">Clear selection</button>
+  <div id="selected"></div>
+  <div id="status"></div>
+</div>
+
+<script>
+const FIXTURES = [{"key": "6:308", "universe": 6, "address": 308, "name": "RGBW #85", "led_type": "RGBW", "led_count": 6, "points": [[1889.5430379231707, 621.6933798095239], [1900.1362359231707, 630.8217231095239]]}, {"key": "6:96", "universe": 6, "address": 96, "name": "RGBW #77", "led_type": "RGBW", "led_count": 5, "points": [[1799.4101149231706, 670.4912235095239], [1791.8213649231707, 679.5134725095239]]}, {"key": "6:300", "universe": 6, "address": 300, "name": "RGBW #84", "led_type": "RGBW", "led_count": 1, "points": [[1904.0871239231706, 635.3672464095239], [2543.0871239231706, 635.3672464095239]]}, {"key": "6:116", "universe": 6, "address": 116, "name": "RGBW #78", "led_type": "RGBW", "led_count": 3, "points": [[1805.110129923171, 664.2054396095239], [1801.288010923171, 669.2992552095238]]}, {"key": "7:88", "universe": 7, "address": 88, "name": "RGBW #90", "led_type": "RGBW", "led_count": 10, "points": [[1784.9584629231708, 573.1358814095239], [1759.2467099231708, 573.6953516095239]]}, {"key": "6:240", "universe": 6, "address": 240, "name": "RGBW #81A", "led_type": "RGBW", "led_count": 2, "points": [[1882.2195999231708, 649.0065537095239], [1879.0119639231707, 649.6648044095239]]}, {"key": "6:12", "universe": 6, "address": 12, "name": "RGBW B1", "led_type": "RGBW", "led_count": 1, "points": [[1794.6619129231708, 729.0776355095239], [2433.661912923171, 729.0776355095239]]}, {"key": "6:84", "universe": 6, "address": 84, "name": "RGBW #76", "led_type": "RGBW", "led_count": 1, "points": [[1791.2537499231707, 685.3672667095238], [2430.2537499231707, 685.3672667095238]]}, {"key": "7:136", "universe": 7, "address": 136, "name": "RGBW #91", "led_type": "RGBW", "led_count": 3, "points": [[1755.213943923171, 571.2658675095239], [1753.8323759231707, 564.9967865095239]]}, {"key": "6:88", "universe": 6, "address": 88, "name": "RGBW B2", "led_type": "RGBW", "led_count": 1, "points": [[1791.4204159231708, 682.2006001095239], [2430.420415923171, 682.2006001095239]]}, {"key": "6:20", "universe": 6, "address": 20, "name": "RGBW #74", "led_type": "RGBW", "led_count": 10, "points": [[1792.5128989231707, 704.2939609095239], [1794.3579199231708, 726.0582238095238]]}, {"key": "6:136", "universe": 6, "address": 136, "name": "RGBW #79", "led_type": "RGBW", "led_count": 10, "points": [[1834.248375923171, 657.0756608095239], [1808.8455859231708, 661.0888238095239]]}, {"key": "6:60", "universe": 6, "address": 60, "name": "RGBW #75", "led_type": "RGBW", "led_count": 6, "points": [[1791.4318119231707, 687.2527939095239], [1792.526678923171, 701.9183525095239]]}, {"key": "6:128", "universe": 6, "address": 128, "name": "RGBW B3", "led_type": "RGBW", "led_count": 1, "points": [[1805.9203959231709, 662.2006001095239], [2444.920395923171, 662.2006001095239]]}, {"key": "6:216", "universe": 6, "address": 216, "name": "RGBW #81", "led_type": "RGBW", "led_count": 6, "points": [[1877.7528099231708, 649.8399320095239], [1863.2056119231706, 651.9977918095238]]}, {"key": "6:0", "universe": 6, "address": 0, "name": "RGBW #73", "led_type": "RGBW", "led_count": 3, "points": [[1795.1913629231708, 732.6280237095239], [1795.2044409231708, 739.2185503095238]]}, {"key": "7:128", "universe": 7, "address": 128, "name": "RGBW B9", "led_type": "RGBW", "led_count": 1, "points": [[1756.1426859231706, 573.6450140095238], [2395.1426859231706, 573.6450140095238]]}, {"key": "6:280", "universe": 6, "address": 280, "name": "RGBW B5", "led_type": "RGBW", "led_count": 1, "points": [[1906.0870829231708, 646.2005899095238], [2545.087082923171, 646.2005899095238]]}, {"key": "6:256", "universe": 6, "address": 256, "name": "RGBW #82", "led_type": "RGBW", "led_count": 6, "points": [[1903.5861639231707, 646.3399320095239], [1889.0389649231706, 648.4977918095238]]}, {"key": "6:304", "universe": 6, "address": 304, "name": "RGBW B6", "led_type": "RGBW", "led_count": 1, "points": [[1903.0871029231707, 632.5339232095239], [2542.0871029231707, 632.5339232095239]]}, {"key": "6:176", "universe": 6, "address": 176, "name": "RGBW #80", "led_type": "RGBW", "led_count": 10, "points": [[1862.0817709231706, 652.5756608095239], [1836.678980923171, 656.5888238095239]]}, {"key": "6:420", "universe": 6, "address": 420, "name": "RGBW #86", "led_type": "RGBW", "led_count": 10, "points": [[1863.2964839231709, 603.8797206095239], [1884.1798789231707, 618.8894183095239]]}, {"key": "6:380", "universe": 6, "address": 380, "name": "RGBW #87", "led_type": "RGBW", "led_count": 10, "points": [[1841.1532149231707, 588.4541799095239], [1861.6074239231707, 604.0436824095239]]}, {"key": "7:448", "universe": 7, "address": 448, "name": "RGBW #88", "led_type": "RGBW", "led_count": 10, "points": [[1839.165358923171, 587.3350960095239], [1817.9286859231706, 572.8295478095239]]}, {"key": "7:48", "universe": 7, "address": 48, "name": "RGBW #89", "led_type": "RGBW", "led_count": 10, "points": [[1812.7260679231708, 571.7212048095239], [1787.034700923171, 572.887778909524]]}, {"key": "7:40", "universe": 7, "address": 40, "name": "RGBW B8", "led_type": "RGBW", "led_count": 1, "points": [[1815.5871239231706, 572.3672464095239], [2454.5871239231706, 572.3672464095239]]}, {"key": "6:288", "universe": 6, "address": 288, "name": "RGBW #83", "led_type": "RGBW", "led_count": 3, "points": [[1904.396986923171, 637.5524199095239], [1906.334608923171, 643.6188173095239]]}, {"key": "7:148", "universe": 7, "address": 148, "name": "RGBW #92", "led_type": "RGBW", "led_count": 5, "points": [[1752.9990629231706, 562.6634532095238], [1750.9014039231706, 552.9190291095239]]}, {"key": "7:168", "universe": 7, "address": 168, "name": "RGBW B10", "led_type": "RGBW", "led_count": 1, "points": [[1751.3094069231706, 547.8672464095239], [2390.3094069231706, 547.8672464095239]]}, {"key": "7:176", "universe": 7, "address": 176, "name": "RGBW #93", "led_type": "RGBW", "led_count": 5, "points": [[1751.8323759231707, 545.1634532095238], [1753.9990429231707, 533.4967865095239]]}, {"key": "9:81", "universe": 9, "address": 81, "name": "RGB Dish Lights", "led_type": "RGB", "led_count": 1, "points": [[609.141036515925, 310.2466091250277], [1248.1410361159249, 310.2466091250277]]}, {"key": "9:78", "universe": 9, "address": 78, "name": "RGB Dish", "led_type": "RGB", "led_count": 1, "points": [[603.5854805159249, 380.2466243250277], [1242.5854801159248, 380.2466243250277]]}, {"key": "9:30", "universe": 9, "address": 30, "name": "RGB #10", "led_type": "RGB", "led_count": 1, "points": [[1132.5438988170572, 418.821235493134], [1771.5438990170571, 418.821235493134]]}, {"key": "9:33", "universe": 9, "address": 33, "name": "RGB #11", "led_type": "RGB", "led_count": 1, "points": [[1261.7515826170572, 637.0948102931341], [1900.751583017057, 637.0948102931341]]}, {"key": "9:36", "universe": 9, "address": 36, "name": "RGB #12", "led_type": "RGB", "led_count": 1, "points": [[1204.2171741170573, 385.52772449313403], [1843.2171740170572, 385.52772449313403]]}, {"key": "9:39", "universe": 9, "address": 39, "name": "RGB #13", "led_type": "RGB", "led_count": 1, "points": [[1778.1311149231706, 472.78406260952386], [2417.1311149231706, 472.78406260952386]]}, {"key": "9:42", "universe": 9, "address": 42, "name": "RGB #14", "led_type": "RGB", "led_count": 1, "points": [[1726.2318609231706, 464.60226660952384], [2365.2318609231706, 464.60226660952384]]}, {"key": "9:45", "universe": 9, "address": 45, "name": "RGB #15", "led_type": "RGB", "led_count": 1, "points": [[2351.8842853527553, 523.3308715846069], [2990.8842853527553, 523.3308715846069]]}, {"key": "9:48", "universe": 9, "address": 48, "name": "RGB #16", "led_type": "RGB", "led_count": 1, "points": [[600.319255415925, 483.3207822250277], [1239.3192551159248, 483.3207822250277]]}, {"key": "9:51", "universe": 9, "address": 51, "name": "RGB #17", "led_type": "RGB", "led_count": 1, "points": [[55.74663542, 285.8877603], [694.7466354, 285.8877603]]}, {"key": "9:54", "universe": 9, "address": 54, "name": "RGB #18", "led_type": "RGB", "led_count": 1, "points": [[243.5956775, 364.4574316], [882.5956775, 364.4574316]]}, {"key": "9:57", "universe": 9, "address": 57, "name": "RGB #19", "led_type": "RGB", "led_count": 1, "points": [[130.8158228, 322.6496412], [769.8158228, 322.6496412]]}, {"key": "9:3", "universe": 9, "address": 3, "name": "RGB #1", "led_type": "RGB", "led_count": 1, "points": [[917.4620926170574, 458.984021193134], [1556.4620930170572, 458.984021193134]]}, {"key": "9:60", "universe": 9, "address": 60, "name": "RGB #20", "led_type": "RGB", "led_count": 1, "points": [[837.6259230170572, 384.575354493134], [1476.6259230170572, 384.575354493134]]}, {"key": "9:63", "universe": 9, "address": 63, "name": "RGB #21", "led_type": "RGB", "led_count": 1, "points": [[1878.7597299231707, 305.82304240952385], [2517.7597299231707, 305.82304240952385]]}, {"key": "9:66", "universe": 9, "address": 66, "name": "RGB #22", "led_type": "RGB", "led_count": 1, "points": [[2196.6892533527553, 590.2814959846069], [2835.6892533527557, 590.2814959846069]]}, {"key": "9:69", "universe": 9, "address": 69, "name": "RGB #23", "led_type": "RGB", "led_count": 1, "points": [[1965.1426705725294, 474.9662859561461], [2604.1426705725294, 474.9662859561461]]}, {"key": "9:72", "universe": 9, "address": 72, "name": "RGB #24", "led_type": "RGB", "led_count": 1, "points": [[2392.4628973527556, 362.59841458460687], [3031.4628973527556, 362.59841458460687]]}, {"key": "9:75", "universe": 9, "address": 75, "name": "RGB #25", "led_type": "RGB", "led_count": 1, "points": [[2235.4316423527553, 488.2261090846069], [2874.4316423527557, 488.2261090846069]]}, {"key": "9:6", "universe": 9, "address": 6, "name": "RGB #2", "led_type": "RGB", "led_count": 1, "points": [[2166.7274343527556, 443.18627668460687], [2805.7274343527556, 443.18627668460687]]}, {"key": "9:9", "universe": 9, "address": 9, "name": "RGB #3", "led_type": "RGB", "led_count": 1, "points": [[2427.9156503527556, 343.06594448460686], [3066.9156503527556, 343.06594448460686]]}, {"key": "9:12", "universe": 9, "address": 12, "name": "RGB #4", "led_type": "RGB", "led_count": 1, "points": [[206.2623441, 433.7907649], [845.2623441, 433.7907649]]}, {"key": "9:15", "universe": 9, "address": 15, "name": "RGB #5", "led_type": "RGB", "led_count": 1, "points": [[974.1415100170573, 550.8324940931341], [1613.1415100170573, 550.8324940931341]]}, {"key": "9:18", "universe": 9, "address": 18, "name": "RGB #6", "led_type": "RGB", "led_count": 1, "points": [[1096.9905342170573, 454.09310499313403], [1735.9905340170571, 454.09310499313403]]}, {"key": "9:21", "universe": 9, "address": 21, "name": "RGB #7", "led_type": "RGB", "led_count": 1, "points": [[1417.206798923171, 510.41804350952384], [2056.206798923171, 510.41804350952384]]}, {"key": "9:24", "universe": 9, "address": 24, "name": "RGB #8", "led_type": "RGB", "led_count": 1, "points": [[1582.640698923171, 526.7399191095238], [2221.640698923171, 526.7399191095238]]}, {"key": "9:27", "universe": 9, "address": 27, "name": "RGB #9", "led_type": "RGB", "led_count": 1, "points": [[1846.0744999231706, 533.7182723095239], [2485.0744999231706, 533.7182723095239]]}, {"key": "7:196", "universe": 7, "address": 196, "name": "RGBW B11", "led_type": "RGBW", "led_count": 1, "points": [[1754.6983499231706, 530.0894415095239], [2393.6983499231706, 530.0894415095239]]}, {"key": "7:204", "universe": 7, "address": 204, "name": "RGBW #94", "led_type": "RGBW", "led_count": 6, "points": [[1752.9860869231707, 527.0399096095239], [1745.203660923171, 517.2255744095239]]}, {"key": "7:228", "universe": 7, "address": 228, "name": "RGBW #95", "led_type": "RGBW", "led_count": 3, "points": [[1743.880610923171, 515.2658980095239], [1739.8703069231706, 509.72557440952386]]}, {"key": "7:240", "universe": 7, "address": 240, "name": "RGBW B12", "led_type": "RGBW", "led_count": 1, "points": [[1738.1983499231706, 506.92277480952384], [2377.1983499231706, 506.92277480952384]]}, {"key": "7:248", "universe": 7, "address": 248, "name": "RGBW #96", "led_type": "RGBW", "led_count": 1, "points": [[1737.1983909231708, 503.75613870952384], [2376.198390923171, 503.75613870952384]]}, {"key": "7:252", "universe": 7, "address": 252, "name": "RGBW #97", "led_type": "RGBW", "led_count": 6, "points": [[1736.4861069231706, 500.87323270952385], [1733.870326923171, 489.0589078095238]]}, {"key": "7:276", "universe": 7, "address": 276, "name": "RGBW #98", "led_type": "RGBW", "led_count": 10, "points": [[1733.2918159231708, 486.8025684095238], [1727.703660923171, 460.72557440952386]]}, {"key": "7:316", "universe": 7, "address": 316, "name": "RGBW #99", "led_type": "RGBW", "led_count": 10, "points": [[1731.8200929231707, 459.23372690952385], [1726.231936923171, 433.15673290952384]]}, {"key": "7:356", "universe": 7, "address": 356, "name": "RGBW B13", "led_type": "RGBW", "led_count": 1, "points": [[1721.0317239231708, 428.5894517095238], [2360.031723923171, 428.5894517095238]]}, {"key": "7:404", "universe": 7, "address": 404, "name": "RGBW #101", "led_type": "RGBW", "led_count": 10, "points": [[1690.793790923171, 416.4230063095238], [1666.2015729231707, 406.1050669095238]]}, {"key": "7:364", "universe": 7, "address": 364, "name": "RGBW #100", "led_type": "RGBW", "led_count": 10, "points": [[1717.8786209231707, 427.21590870952383], [1693.116711923171, 417.31212490952385]]}, {"key": "8:0", "universe": 8, "address": 0, "name": "RGBW #102", "led_type": "RGBW", "led_count": 10, "points": [[1664.1270939231708, 405.2563244095238], [1639.5348749231707, 394.9383850095238]]}, {"key": "8:40", "universe": 8, "address": 40, "name": "RGBW B13", "led_type": "RGBW", "led_count": 1, "points": [[1636.698400923171, 394.42277480952384], [2275.698400923171, 394.42277480952384]]}, {"key": "8:48", "universe": 8, "address": 48, "name": "RGBW #91", "led_type": "RGBW", "led_count": 3, "points": [[1636.253990923171, 391.49288000952384], [1634.1257239231709, 385.43643040952384]]}, {"key": "0:0", "universe": 0, "address": 0, "name": "RGBW #1", "led_type": "RGBW", "led_count": 10, "points": [[987.6951501170572, 683.1676599931341], [987.9052222170571, 714.8885529931341]]}, {"key": "0:420", "universe": 0, "address": 420, "name": "RGBW #2", "led_type": "RGBW", "led_count": 6, "points": [[987.7039879170572, 672.4687851931341], [987.7039879170572, 681.7044875931341]]}, {"key": "0:64", "universe": 0, "address": 64, "name": "RGBW C1", "led_type": "RGBW", "led_count": 1, "points": [[987.7854748170573, 669.8865378931341], [1626.7854750170573, 669.8865378931341]]}, {"key": "0:72", "universe": 0, "address": 72, "name": "RGBW #3", "led_type": "RGBW", "led_count": 6, "points": [[974.5906920170573, 657.285487593134], [987.4363831170572, 667.1862671931341]]}, {"key": "0:96", "universe": 0, "address": 96, "name": "RGBW #4", "led_type": "RGBW", "led_count": 1, "points": [[972.7427087170572, 655.936232593134], [1611.7427090170572, 655.936232593134]]}, {"key": "0:100", "universe": 0, "address": 100, "name": "RGBW #5", "led_type": "RGBW", "led_count": 10, "points": [[947.9371927170573, 639.5760487931341], [970.6276527170573, 655.2652624931341]]}, {"key": "0:140", "universe": 0, "address": 140, "name": "RGBW #6", "led_type": "RGBW", "led_count": 6, "points": [[932.1276527170573, 629.0985957931341], [946.6276527170573, 638.7652624931341]]}, {"key": "0:164", "universe": 0, "address": 164, "name": "RGBW C2", "led_type": "RGBW", "led_count": 1, "points": [[929.4609860170572, 628.2652624931341], [1568.4609860170572, 628.2652624931341]]}, {"key": "0:172", "universe": 0, "address": 172, "name": "RGBW #7", "led_type": "RGBW", "led_count": 6, "points": [[945.9609860170572, 619.431929093134], [931.6276527170573, 626.7652624931341]]}, {"key": "0:196", "universe": 0, "address": 196, "name": "RGBW #8", "led_type": "RGBW", "led_count": 10, "points": [[971.1276527170573, 606.431929093134], [948.1276527170573, 618.5985957931341]]}, {"key": "0:236", "universe": 0, "address": 236, "name": "RGBW #9", "led_type": "RGBW", "led_count": 6, "points": [[986.7943193170572, 598.5985957931341], [972.4609860170572, 605.931929093134]]}, {"key": "0:260", "universe": 0, "address": 260, "name": "RGBW #10", "led_type": "RGBW", "led_count": 6, "points": [[1002.9609860170572, 590.431929093134], [988.6276527170573, 597.7652624931341]]}, {"key": "0:284", "universe": 0, "address": 284, "name": "RGBW C3", "led_type": "RGBW", "led_count": 1, "points": [[1004.7943193170572, 589.7652624931341], [1643.7943190170572, 589.7652624931341]]}, {"key": "0:292", "universe": 0, "address": 292, "name": "RGBW #11", "led_type": "RGBW", "led_count": 10, "points": [[1032.9609860170572, 597.0985957931341], [1006.9609860170572, 589.2652624931341]]}, {"key": "0:332", "universe": 0, "address": 332, "name": "RGBW C4", "led_type": "RGBW", "led_count": 1, "points": [[1034.7943193170572, 597.7652624931341], [1673.7943190170572, 597.7652624931341]]}, {"key": "0:340", "universe": 0, "address": 340, "name": "RGBW #12", "led_type": "RGBW", "led_count": 10, "points": [[1033.7943193170572, 571.431929093134], [1034.6276527170573, 595.431929093134]]}, {"key": "0:380", "universe": 0, "address": 380, "name": "RGBW #13", "led_type": "RGBW", "led_count": 10, "points": [[1031.9609860170572, 542.098595793134], [1033.4609860170572, 569.0985957931341]]}, {"key": "5:0", "universe": 5, "address": 0, "name": "RGBW #66", "led_type": "RGBW", "led_count": 10, "points": [[1706.363561923171, 578.2340265095239], [1724.1097979231708, 594.9414503095239]]}, {"key": "5:40", "universe": 5, "address": 40, "name": "RGBW A2", "led_type": "RGBW", "led_count": 1, "points": [[1727.9204369231707, 597.8672871095239], [2366.9204369231707, 597.8672871095239]]}, {"key": "5:48", "universe": 5, "address": 48, "name": "RGBW #67", "led_type": "RGBW", "led_count": 2, "points": [[1728.3726729231707, 600.8256057095239], [1727.5254919231706, 603.9885958095239]]}, {"key": "5:56", "universe": 5, "address": 56, "name": "RGBW #68", "led_type": "RGBW", "led_count": 10, "points": [[1726.6592139231707, 606.3828643095239], [1718.8140289231706, 629.4592586095239]]}, {"key": "5:96", "universe": 5, "address": 96, "name": "RGBW #69", "led_type": "RGBW", "led_count": 10, "points": [[1718.1592139231707, 631.2161976095239], [1710.3140289231706, 654.2925919095239]]}, {"key": "5:136", "universe": 5, "address": 136, "name": "RGBW #70", "led_type": "RGBW", "led_count": 10, "points": [[1709.4925679231706, 656.2161976095239], [1701.6473829231709, 679.2925919095239]]}, {"key": "5:176", "universe": 5, "address": 176, "name": "RGBW A1", "led_type": "RGBW", "led_count": 1, "points": [[1698.8362539231707, 690.3708042095238], [2337.8362539231707, 690.3708042095238]]}, {"key": "5:184", "universe": 5, "address": 184, "name": "RGBW #71", "led_type": "RGBW", "led_count": 10, "points": [[1697.8921709231709, 692.9171624095239], [1692.1441049231707, 717.8477418095239]]}, {"key": "4:48", "universe": 4, "address": 48, "name": "RGBW #56", "led_type": "RGBW", "led_count": 2, "points": [[1626.8152129231707, 408.52617850952385], [1626.193278923171, 405.31130360952386]]}, {"key": "4:56", "universe": 4, "address": 56, "name": "RGBW #57", "led_type": "RGBW", "led_count": 10, "points": [[1633.016672923171, 437.42320400952383], [1627.6232749231708, 411.25234210952385]]}, {"key": "4:96", "universe": 4, "address": 96, "name": "RGBW #58", "led_type": "RGBW", "led_count": 10, "points": [[1638.5167039231706, 463.4231837095238], [1633.789951923171, 439.25234210952385]]}, {"key": "4:136", "universe": 4, "address": 136, "name": "RGBW #59", "led_type": "RGBW", "led_count": 10, "points": [[1643.1833809231707, 489.08987070952384], [1638.956618923171, 465.08567540952384]]}, {"key": "4:176", "universe": 4, "address": 176, "name": "RGBW A6", "led_type": "RGBW", "led_count": 1, "points": [[1644.9204059231706, 494.0339436095238], [2283.9204059231706, 494.0339436095238]]}, {"key": "4:184", "universe": 4, "address": 184, "name": "RGBW #60", "led_type": "RGBW", "led_count": 10, "points": [[1668.0458889231709, 508.30671540952386], [1647.2247199231706, 495.89553510952385]]}, {"key": "4:224", "universe": 4, "address": 224, "name": "RGBW A5", "led_type": "RGBW", "led_count": 1, "points": [[1671.0627559231707, 511.00353740952386], [2310.0627559231707, 511.00353740952386]]}, {"key": "4:0", "universe": 4, "address": 0, "name": "?? RGBW #61", "led_type": "RGBW", "led_count": 3, "points": [[1676.2210719231707, 517.6497811095238], [1673.4960109231706, 512.9782483095239]]}, {"key": "4:244", "universe": 4, "address": 244, "name": "RGBW #62", "led_type": "RGBW", "led_count": 10, "points": [[1690.8781939231708, 539.9892838095238], [1676.8050129231706, 519.2069588095238]]}, {"key": "4:284", "universe": 4, "address": 284, "name": "RGBW A4", "led_type": "RGBW", "led_count": 1, "points": [[1691.753728923171, 542.5339436095238], [2330.753728923171, 542.5339436095238]]}, {"key": "4:292", "universe": 4, "address": 292, "name": "RGBW #63", "led_type": "RGBW", "led_count": 6, "points": [[1688.9421339231708, 558.0005187095238], [1691.0646449231708, 545.5045685095239]]}, {"key": "4:316", "universe": 4, "address": 316, "name": "RGBW A3", "led_type": "RGBW", "led_count": 1, "points": [[1688.5870829231708, 560.7006102095239], [2327.587082923171, 560.7006102095239]]}, {"key": "4:324", "universe": 4, "address": 324, "name": "RGBW #64", "led_type": "RGBW", "led_count": 3, "points": [[1695.5261339231706, 567.7590947095239], [1690.8720929231708, 563.4122037095239]]}, {"key": "4:336", "universe": 4, "address": 336, "name": "RGBW #65", "led_type": "RGBW", "led_count": 5, "points": [[1705.109362923171, 577.1784944095239], [1696.7889369231707, 568.8262124095239]]}, {"key": "3:140", "universe": 3, "address": 140, "name": "Uni.3 RGBW", "led_type": "RGBW", "led_count": 10, "points": [[1557.3100079231708, 311.02248500952385], [1556.5038899231708, 293.97066430952384]]}, {"key": "3:184", "universe": 3, "address": 184, "name": "Uni.3 RGBW", "led_type": "RGBW", "led_count": 3, "points": [[1555.1689469231706, 344.1871210095238], [1558.0349289231708, 338.13669540952384]]}, {"key": "8:60", "universe": 8, "address": 60, "name": "Uni.9 RGBW", "led_type": "RGBW", "led_count": 11, "points": [[1633.7407829231706, 384.74165190952385], [1624.556492923171, 359.60570020952383]]}, {"key": "8:108", "universe": 8, "address": 108, "name": "Uni.9 RGBW", "led_type": "RGBW", "led_count": 7, "points": [[1622.8365049231707, 357.4338095095238], [1605.9180759231708, 349.69967050952386]]}, {"key": "8:144", "universe": 8, "address": 144, "name": "Uni.9 RGBW", "led_type": "RGBW", "led_count": 6, "points": [[1606.011174923171, 347.90873520952385], [1605.6159909231706, 328.00310330952385]]}, {"key": "1:0", "universe": 1, "address": 0, "name": "RGBW01", "led_type": "RGBW", "led_count": 10, "points": [[1032.1556639170572, 540.8370946931341], [1030.2450049170573, 511.54032339313403]]}, {"key": "1:48", "universe": 1, "address": 48, "name": "RGBW01", "led_type": "RGBW", "led_count": 7, "points": [[1029.6081185170572, 507.368283093134], [1024.8314710170573, 489.885224993134]]}, {"key": "1:76", "universe": 1, "address": 76, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1023.5576989170572, 487.123660593134], [1023.5576989170572, 847.1236605931341]]}, {"key": "1:84", "universe": 1, "address": 84, "name": "RGBW01", "led_type": "RGBW", "led_count": 18, "points": [[1020.0548235170572, 484.794675293134], [980.5678709170572, 468.235630693134]]}, {"key": "1:156", "universe": 1, "address": 156, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[975.7912210170573, 466.10641529313403], [975.7912210170573, 826.1064152931341]]}, {"key": "1:164", "universe": 1, "address": 164, "name": "RGBW01", "led_type": "RGBW", "led_count": 10, "points": [[975.7912234170572, 462.807426693134], [981.8416435170573, 439.879518693134]]}, {"key": "1:244", "universe": 1, "address": 244, "name": "RGBW01", "led_type": "RGBW", "led_count": 6, "points": [[982.4785287170573, 437.331983793134], [985.3445184170573, 423.965135693134]]}, {"key": "1:204", "universe": 1, "address": 204, "name": "RGBW01", "led_type": "RGBW", "led_count": 10, "points": [[986.2998494170572, 421.091368493134], [992.6687112170573, 391.802375893134]]}, {"key": "1:268", "universe": 1, "address": 268, "name": "RGBW01", "led_type": "RGBW", "led_count": 3, "points": [[992.9871544170574, 388.617944193134], [996.1715860170573, 382.249080893134]]}, {"key": "1:284", "universe": 1, "address": 284, "name": "RGBW01", "led_type": "RGBW", "led_count": 16, "points": [[997.1269123170573, 379.056868993134], [1016.5519487170573, 343.868297593134]]}, {"key": "2:0", "universe": 2, "address": 0, "name": "RGBW01", "led_type": "RGBW", "led_count": 6, "points": [[1021.3285999170573, 341.799022093134], [1034.7032092170573, 337.978955493134]]}, {"key": "2:24", "universe": 2, "address": 24, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1037.8876604170573, 337.455373593134], [1037.8876604170573, 697.455373593134]]}, {"key": "2:32", "universe": 2, "address": 32, "name": "RGBW01", "led_type": "RGBW", "led_count": 12, "points": [[1039.4798567170571, 335.052153993134], [1039.1614135170573, 303.909170193134]]}, {"key": "2:80", "universe": 2, "address": 80, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1039.1614144170574, 301.15285089313403], [1039.1614144170574, 661.1528508931341]]}, {"key": "2:88", "universe": 2, "address": 88, "name": "RGBW01", "led_type": "RGBW", "led_count": 9, "points": [[1041.7089548170572, 300.401411093134], [1060.8163458170573, 297.857724393134]]}, {"key": "2:132", "universe": 2, "address": 132, "name": "RGBW01", "led_type": "RGBW", "led_count": 21, "points": [[1063.9999844170572, 297.535426393134], [1113.3594683170572, 274.92981639313405]]}, {"key": "2:216", "universe": 2, "address": 216, "name": "RGBW01", "led_type": "RGBW", "led_count": 6, "points": [[1115.2693245170572, 274.28907079313404], [1125.4603086170573, 276.20358909313404]]}, {"key": "2:240", "universe": 2, "address": 240, "name": "RGBW01", "led_type": "RGBW", "led_count": 61, "points": [[1132.1468762170573, 277.473536693134], [1147.7505913170573, 281.294854693134]]}, {"key": "0:40", "universe": 0, "address": 40, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1030.2450044170573, 509.096251193134], [1030.2450044170573, 869.0962511931341]]}, {"key": "3:0", "universe": 3, "address": 0, "name": "RGBW01", "led_type": "RGBW", "led_count": 10, "points": [[1520.2753949231706, 261.21596220952387], [1504.3525159231708, 267.26362140952386]]}, {"key": "3:52", "universe": 3, "address": 52, "name": "RGBW01", "led_type": "RGBW", "led_count": 6, "points": [[1541.6110869231707, 267.2663824095238], [1531.4201819231707, 258.0287712095238]]}, {"key": "3:76", "universe": 3, "address": 76, "name": "RGBW01", "led_type": "RGBW", "led_count": 5, "points": [[1554.348812923171, 280.64099540952384], [1543.2033029231707, 268.85859820952385]]}, {"key": "3:136", "universe": 3, "address": 136, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1598.293266923171, 366.4140104095238], [1598.293266923171, 726.4140104095239]]}, {"key": "3:240", "universe": 3, "address": 240, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1582.3710989231708, 356.5422675095238], [1582.3710989231708, 716.5422675095239]]}, {"key": "3:212", "universe": 3, "address": 212, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1559.1247669231707, 350.17340480952384], [1559.1247669231707, 710.1734048095238]]}, {"key": "3:204", "universe": 3, "address": 204, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1556.2587439231706, 346.9889692095238], [1556.2587439231706, 706.9889692095239]]}, {"key": "3:308", "universe": 3, "address": 308, "name": "RGBW01", "led_type": "RGBW", "led_count": 10, "points": [[1625.0480299231708, 400.3793422095238], [1608.1707849231707, 379.03928400952384]]}, {"key": "3:288", "universe": 3, "address": 288, "name": "RGBW01", "led_type": "RGBW", "led_count": 5, "points": [[1600.209705923171, 369.1675459095238], [1607.215454923171, 377.7655114095238]]}, {"key": "3:284", "universe": 3, "address": 284, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1595.1088299231706, 363.86643620952384], [1595.1088299231706, 723.8664362095238]]}, {"key": "3:252", "universe": 3, "address": 252, "name": "RGBW01", "led_type": "RGBW", "led_count": 6, "points": [[1593.206888923171, 362.47811890952386], [1584.9273669231707, 357.38302820952384]]}, {"key": "3:96", "universe": 3, "address": 96, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1557.5675969231706, 286.13287880952385], [1557.5675969231706, 646.1328788095238]]}, {"key": "3:100", "universe": 3, "address": 100, "name": "RGBW01", "led_type": "RGBW", "led_count": 3, "points": [[1530.0066529231708, 257.07343710952387], [1524.7476139231708, 259.6253569095239]]}, {"key": "3:112", "universe": 3, "address": 112, "name": "RGBW01", "led_type": "RGBW", "led_count": 2, "points": [[1556.2734869231708, 292.10655990952387], [1555.6218749231707, 287.00710240952384]]}, {"key": "3:348", "universe": 3, "address": 348, "name": "RGBW01", "led_type": "RGBW", "led_count": 10, "points": [[1558.5199509231707, 331.37487360952383], [1557.2461779231708, 313.5420562095238]]}, {"key": "3:388", "universe": 3, "address": 388, "name": "RGBW01", "led_type": "RGBW", "led_count": 2, "points": [[1558.8210329231706, 336.6886032095238], [1558.6556559231708, 332.8601503095238]]}, {"key": "3:216", "universe": 3, "address": 216, "name": "RGBW01", "led_type": "RGBW", "led_count": 6, "points": [[1578.2460659231706, 355.15830690952384], [1562.6423509231709, 351.3369889095238]]}, {"key": "8:168", "universe": 8, "address": 168, "name": "RGBW01", "led_type": "RGBW", "led_count": 3, "points": [[1605.4546329231707, 325.0382110095238], [1605.284594923171, 315.1237994095238]]}, {"key": "5:232", "universe": 5, "address": 232, "name": "RGBW01", "led_type": "RGBW", "led_count": 2, "points": [[1700.8103129231708, 682.6064433095239], [1699.4485329231707, 686.6918100095239]]}, {"key": "3:40", "universe": 3, "address": 40, "name": "RGBW01", "led_type": "RGBW", "led_count": 1, "points": [[1625.6645469231707, 402.53590960952386], [1625.6645469231707, 762.5359096095239]]}];
+let fixtures = FIXTURES.map(fx => ({ ...fx, points: fx.points.map(p => [...p]) }));
+const originalFixtures = JSON.parse(JSON.stringify(FIXTURES));
+
+const xs = fixtures.flatMap(f => f.points.map(p => p[0]));
+const ys = fixtures.flatMap(f => f.points.map(p => p[1]));
+const bbox = { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+
+const canvas = document.getElementById('layout');
+const ctx = canvas.getContext('2d');
+let dotScreenPositions = [];
+let movedKeys = new Set();
+let selectedKeys = new Set();
+
+function toCanvas(x, y) {
+  const pad = 30;
+  const w = canvas.width - pad * 2, h = canvas.height - pad * 2;
+  const sx = bbox.maxX > bbox.minX ? (x - bbox.minX) / (bbox.maxX - bbox.minX) : 0.5;
+  const sy = bbox.maxY > bbox.minY ? (y - bbox.minY) / (bbox.maxY - bbox.minY) : 0.5;
+  return [pad + sx * w, pad + sy * h];
+}
+
+function drawWallDividers() {
+  const labels = ['wall four', 'wall three', 'wall two', 'Wall one'];
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.font = '11px Arial';
+  ctx.fillStyle = '#777';
+  for (let i = 1; i < 4; i++) {
+    const x = (canvas.width / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  labels.forEach((label, i) => ctx.fillText(label, (canvas.width / 4) * i + 8, 14));
+}
+
+function draw() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawWallDividers();
+  dotScreenPositions = [];
+
+  // Faint line between each fixture's two geometry points first, behind
+  // the dots - lets you visually trace which fixtures' segments touch
+  // end-to-end to form one continuous physical strip, which is what you
+  // rubber-band around to select and move that whole strip together.
+  ctx.strokeStyle = '#2a2a2a';
+  ctx.lineWidth = 1;
+  fixtures.forEach(fx => {
+    const [p0, p1] = fx.points;
+    const [ax, ay] = toCanvas(p0[0], p0[1]);
+    const [bx, by] = toCanvas(p1[0], p1[1]);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+  });
+
+  fixtures.forEach((fx, i) => {
+    const n = fx.led_count;
+    const moved = movedKeys.has(fx.key);
+    const isSelected = selectedKeys.has(fx.key);
+    for (let j = 0; j < n; j++) {
+      const t = n === 1 ? 0 : j / (n - 1);
+      const x = fx.points[0][0] + (fx.points[1][0] - fx.points[0][0]) * t;
+      const y = fx.points[0][1] + (fx.points[1][1] - fx.points[0][1]) * t;
+      const [cx, cy] = toCanvas(x, y);
+      ctx.fillStyle = moved ? '#4a88fb' : '#888';
+      ctx.beginPath();
+      ctx.arc(cx, cy, moved ? 4 : 3, 0, Math.PI * 2);
+      ctx.fill();
+      if (isSelected) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      dotScreenPositions.push({ x: cx, y: cy, fixtureIndex: i });
+    }
+  });
+
+  if (rubberBand) {
+    const { x0, y0, x1, y1 } = rubberBand;
+    ctx.strokeStyle = '#4a88fb';
+    ctx.fillStyle = 'rgba(74, 136, 251, 0.15)';
+    const rx = Math.min(x0, x1), ry = Math.min(y0, y1), rw = Math.abs(x1 - x0), rh = Math.abs(y1 - y0);
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx, ry, rw, rh);
+  }
+}
+
+function canvasPoint(ev) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+  return [(ev.clientX - rect.left) * scaleX, (ev.clientY - rect.top) * scaleY];
+}
+
+function hitTest(mx, my) {
+  let closest = null, closestDist = 20;
+  for (const p of dotScreenPositions) {
+    const d = Math.hypot(p.x - mx, p.y - my);
+    if (d < closestDist) { closestDist = d; closest = p; }
+  }
+  return closest;
+}
+
+function updateSelectedLabel() {
+  const n = selectedKeys.size;
+  document.getElementById('selected').textContent =
+    n > 0 ? `${n} fixture(s) selected (drag any one of them to move the whole selection)` : '';
+}
+
+// mousedown either starts a rubber-band (empty space) or a candidate
+// drag/click on a dot - which one it ends up being (a plain toggle-select
+// click, or a drag of one/many fixtures) is only decided once the mouse
+// has moved far enough, same click-vs-drag threshold trick as before.
+let drag = null;
+let rubberBand = null;
+
+canvas.addEventListener('mousedown', (ev) => {
+  const [mx, my] = canvasPoint(ev);
+  const hit = hitTest(mx, my);
+  if (!hit) {
+    rubberBand = { x0: mx, y0: my, x1: mx, y1: my };
+    return;
+  }
+  const key = fixtures[hit.fixtureIndex].key;
+  // Dragging a dot already in the selection moves the whole selection;
+  // dragging one that isn't moves just that one fixture, leaving the rest
+  // of the selection untouched (and unmoved) until a plain click updates it.
+  const members = selectedKeys.has(key) ? fixtures.filter(fx => selectedKeys.has(fx.key)) : [fixtures[hit.fixtureIndex]];
+  drag = {
+    key, startMx: mx, startMy: my, isDrag: false,
+    members,
+    basePoints: members.map(fx => fx.points.map(p => [...p])),
+  };
+});
+
+canvas.addEventListener('mousemove', (ev) => {
+  const [mx, my] = canvasPoint(ev);
+  if (rubberBand) {
+    rubberBand.x1 = mx;
+    rubberBand.y1 = my;
+    draw();
+    return;
+  }
+  if (!drag) return;
+  if (Math.hypot(mx - drag.startMx, my - drag.startMy) > 3) drag.isDrag = true;
+  if (!drag.isDrag) return;
+  canvas.style.cursor = 'grabbing';
+  const pad = 30;
+  const w = canvas.width - pad * 2, h = canvas.height - pad * 2;
+  const dataDx = ((mx - drag.startMx) / w) * (bbox.maxX - bbox.minX);
+  const dataDy = ((my - drag.startMy) / h) * (bbox.maxY - bbox.minY);
+  drag.members.forEach((fx, i) => {
+    fx.points = drag.basePoints[i].map(p => [p[0] + dataDx, p[1] + dataDy]);
+    movedKeys.add(fx.key);
+  });
+  draw();
+});
+
+window.addEventListener('mouseup', () => {
+  if (rubberBand) {
+    const rx0 = Math.min(rubberBand.x0, rubberBand.x1), rx1 = Math.max(rubberBand.x0, rubberBand.x1);
+    const ry0 = Math.min(rubberBand.y0, rubberBand.y1), ry1 = Math.max(rubberBand.y0, rubberBand.y1);
+    // A genuine rubber-band drag adds everything inside it to the current
+    // selection; a plain click on empty space (no real movement) clears it.
+    if (Math.hypot(rx1 - rx0, ry1 - ry0) > 4) {
+      dotScreenPositions.forEach(p => {
+        if (p.x >= rx0 && p.x <= rx1 && p.y >= ry0 && p.y <= ry1) selectedKeys.add(fixtures[p.fixtureIndex].key);
+      });
+    } else {
+      selectedKeys = new Set();
+    }
+    updateSelectedLabel();
+    rubberBand = null;
+    draw();
+    return;
+  }
+  if (drag) {
+    if (drag.isDrag) {
+      document.getElementById('status').textContent = `${movedKeys.size} fixture(s) moved so far`;
+    } else {
+      // Plain click, nothing moved - toggle this one fixture's selection.
+      if (selectedKeys.has(drag.key)) selectedKeys.delete(drag.key); else selectedKeys.add(drag.key);
+      updateSelectedLabel();
+    }
+  }
+  drag = null;
+  canvas.style.cursor = 'grab';
+  draw();
+});
+
+document.getElementById('btnClearSelection').onclick = () => {
+  selectedKeys = new Set();
+  updateSelectedLabel();
+  draw();
+};
+
+document.getElementById('btnReset').onclick = () => {
+  fixtures = JSON.parse(JSON.stringify(originalFixtures)).map(fx => ({ ...fx, points: fx.points.map(p => [...p]) }));
+  movedKeys.clear();
+  selectedKeys = new Set();
+  document.getElementById('selected').textContent = '';
+  document.getElementById('status').textContent = '';
+  draw();
+};
+
+document.getElementById('btnDownload').onclick = () => {
+  const header = 'universe,address,name,led_type,led_count,x1,y1,x2,y2';
+  const rows = fixtures.map(fx => {
+    const [[x1, y1], [x2, y2]] = fx.points;
+    return [fx.universe, fx.address, `"${fx.name}"`, fx.led_type, fx.led_count, x1, y1, x2, y2].join(',');
+  });
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'layout_edited.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('status').textContent = 'Downloaded layout_edited.csv - send this back.';
+};
+
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+# HOTA Gallery Art-Net lighting control, systemd unit.
+#
+# Pure stdlib - no venv, no pip install for the core engine (media
+# processing reaches for Pillow/ffmpeg, already present on this Pi - see
+# the project plan for why that split exists).
+#
+# Install:
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin hota-gallery
+#   sudo install -d -o hota-gallery -g hota-gallery /opt/hota-gallery
+#   sudo cp -r hota_gallery/ /opt/hota-gallery/hota_gallery
+#   sudo chown -R hota-gallery:hota-gallery /opt/hota-gallery/hota_gallery
+#   sudo install -d -m 0750 -o hota-gallery -g hota-gallery /etc/hota-gallery
+#   sudo install -o hota-gallery -g hota-gallery -m 0640 data/config.json /etc/hota-gallery/config.json
+#   # (root:group with 0750 looks tempting but is wrong here - the service
+#   # user needs write on the *directory* itself to create the .tmp file
+#   # save_config's atomic rename depends on, not just on the config file)
+#   sudo install -m 0644 hota-gallery.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now hota-gallery
+#
+# Logs:   journalctl -u hota-gallery -f
+# Reload: sudo systemctl restart hota-gallery   (config is read at start only;
+#         changes via the API reload the running engine without a restart -
+#         see webapp.Store)
+
+[Unit]
+Description=HOTA Gallery Art-Net lighting control
+Documentation=file:/opt/hota-gallery/README.md
+After=network-online.target
+Wants=network-online.target
+# Never give up - once the facade depends on this, an exhausted start
+# limit means someone has to notice and ssh in. [Unit], not [Service] -
+# systemd silently ignores it in the latter.
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30s
+
+User=hota-gallery
+Group=hota-gallery
+WorkingDirectory=/opt/hota-gallery
+ExecStart=/usr/bin/python3 -m hota_gallery serve --config /etc/hota-gallery/config.json
+
+Restart=always
+RestartSec=5s
+
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hota-gallery
+
+# Hardening - the API edits config.json live (layout/look/schedule edits
+# all write it at runtime), so ProtectSystem=strict needs an explicit
+# exception for that one directory, same reasoning as sacn2wiz's unit.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/hota-gallery
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

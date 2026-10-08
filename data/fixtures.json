@@ -1,0 +1,3236 @@
+[
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #85",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 308,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 28.2865621597017,
+    "points": [
+      [
+        1036.36598666523,
+        485.094889427161
+      ],
+      [
+        1046.95918466825,
+        494.223232771397
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #77",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 96,
+    "led_count": 5,
+    "channels_per_led": 4,
+    "rotation": 87.2813350971939,
+    "points": [
+      [
+        946.233063817201,
+        533.892733137392
+      ],
+      [
+        938.644313352655,
+        542.91498212433
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #84",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 300,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        1050.91007220514,
+        498.768756067649
+      ],
+      [
+        1689.91007220512,
+        498.768756067649
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #78",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 116,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 84.0036461022081,
+    "points": [
+      [
+        951.933078882397,
+        527.606949251592
+      ],
+      [
+        948.110959337438,
+        532.700764888185
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #90",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 88,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 558.133589330131,
+    "points": [
+      [
+        931.781411152561,
+        436.53739110516
+      ],
+      [
+        906.069658641094,
+        437.096861265401
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #81A",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 240,
+    "led_count": 2,
+    "channels_per_led": 4,
+    "rotation": 243.659563188208,
+    "points": [
+      [
+        1029.04254893354,
+        512.408063356113
+      ],
+      [
+        1025.83491301015,
+        513.066314072192
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B1",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 12,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        941.484861572087,
+        592.479145158964
+      ],
+      [
+        1580.48486157207,
+        592.479145158964
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #76",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 84,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        938.076698181704,
+        548.768776412709
+      ],
+      [
+        1577.0766981817,
+        548.768776412709
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #91",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 136,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 211.673075001144,
+    "points": [
+      [
+        902.036892562281,
+        434.667377133028
+      ],
+      [
+        900.655324937296,
+        428.398296215537
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B2",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 88,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        938.243364848373,
+        545.60210974604
+      ],
+      [
+        1577.24336484836,
+        545.60210974604
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #74",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 20,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 465.573795116682,
+    "points": [
+      [
+        939.335847980338,
+        567.695470595075
+      ],
+      [
+        941.180868177092,
+        589.459733457795
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #79",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 136,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 550.402650115693,
+    "points": [
+      [
+        981.071325008158,
+        520.477170455772
+      ],
+      [
+        955.668534875546,
+        524.490333491286
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #75",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 60,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 75.7026199228805,
+    "points": [
+      [
+        938.254760614195,
+        550.654303549012
+      ],
+      [
+        939.349627635812,
+        565.319862162299
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B3",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 128,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        952.743344503321,
+        525.60210974604
+      ],
+      [
+        1591.74334450331,
+        525.60210974604
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #81",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 216,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 161.534705187983,
+    "points": [
+      [
+        1024.57575877763,
+        513.241441628349
+      ],
+      [
+        1010.02856027439,
+        515.399301434263
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #73",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 0,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 46.438640419741,
+    "points": [
+      [
+        942.014311793395,
+        596.029533326559
+      ],
+      [
+        942.027389468542,
+        602.620060007268
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B9",
+    "group2": "Uni. 8 ",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 128,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        902.965634542406,
+        437.046523672896
+      ],
+      [
+        1541.96563454242,
+        437.046523672896
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B5",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 280,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        1052.91003151503,
+        509.602099573509
+      ],
+      [
+        1691.91003151502,
+        509.602099573509
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #82",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 256,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 161.534705187983,
+    "points": [
+      [
+        1050.40911245602,
+        509.741441628351
+      ],
+      [
+        1035.86191395278,
+        511.899301434265
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B6",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 304,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        1049.91005186008,
+        495.935432906842
+      ],
+      [
+        1688.91005186007,
+        495.935432906842
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #80",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 176,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 550.402650115693,
+    "points": [
+      [
+        1008.90471937664,
+        515.977170455777
+      ],
+      [
+        983.50192924403,
+        519.990333491289
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #86",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 420,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 415.086362085305,
+    "points": [
+      [
+        1010.11943245203,
+        467.281230280766
+      ],
+      [
+        1031.00282773093,
+        482.290928002451
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #87",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 380,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 416.693527933281,
+    "points": [
+      [
+        987.976163874338,
+        451.855689521474
+      ],
+      [
+        1008.43037209205,
+        467.445192087554
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #88",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 448,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 593.714841875278,
+    "points": [
+      [
+        985.988307762499,
+        450.73660568016
+      ],
+      [
+        964.75163437425,
+        436.231057518439
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #89",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 48,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 556.780252333561,
+    "points": [
+      [
+        959.549016345178,
+        435.122714505361
+      ],
+      [
+        933.857649524194,
+        436.289288523925
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B8",
+    "group2": "Uni. 8 ",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 40,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        962.410072205138,
+        435.768756067652
+      ],
+      [
+        1601.41007220513,
+        435.768756067652
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #83",
+    "group2": "Uni. 7",
+    "led_type": "RGBW",
+    "universe": 6,
+    "address": 288,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 29.4074886607137,
+    "points": [
+      [
+        1051.21993600272,
+        500.953929601335
+      ],
+      [
+        1053.1575579832,
+        507.02032693553
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #92",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 148,
+    "led_count": 5,
+    "channels_per_led": 4,
+    "rotation": 89.8192212918285,
+    "points": [
+      [
+        899.822011949015,
+        426.064962882204
+      ],
+      [
+        897.724352211291,
+        416.320538782812
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B10",
+    "group2": "Uni. 8 ",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 168,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        898.132355462551,
+        411.268756067648
+      ],
+      [
+        1537.13235546257,
+        411.268756067648
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #93",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 176,
+    "led_count": 5,
+    "channels_per_led": 4,
+    "rotation": 89.8192212918285,
+    "points": [
+      [
+        898.655324937296,
+        408.564962882204
+      ],
+      [
+        900.821991603963,
+        396.898296215537
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB Dish Lights",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 81,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        12.8325669543348,
+        136.448203721452
+      ],
+      [
+        651.832566954356,
+        136.448203721452
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB Dish",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 78,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        7.27701099480896,
+        206.448218980237
+      ],
+      [
+        646.277010994831,
+        206.448218980237
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #10",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 30,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        367.054799825934,
+        307.337089219506
+      ],
+      [
+        1006.05479982595,
+        307.337089219506
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #11",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 33,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        623.054799825951,
+        309.337104478322
+      ],
+      [
+        1262.05479982597,
+        309.337104478322
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #12",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 36,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        744.388122986739,
+        277.337084133244
+      ],
+      [
+        1383.38812298676,
+        277.337084133244
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #13",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 39,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        834.388122986747,
+        259.337099392033
+      ],
+      [
+        1473.38812298677,
+        259.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #14",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 42,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        873.054809998456,
+        328.003776231236
+      ],
+      [
+        1512.05480999847,
+        328.003776231236
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #15",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 45,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        1181.05474896329,
+        288.003766058709
+      ],
+      [
+        1820.05474896331,
+        288.003766058709
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #16",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 48,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        24.3881223509681,
+        251.337104478314
+      ],
+      [
+        663.388122350986,
+        251.337104478314
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #17",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 51,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        78.3881204436187,
+        294.670442897903
+      ],
+      [
+        717.388120443637,
+        294.670442897903
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #18",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 54,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        250.388122986753,
+        273.337099392045
+      ],
+      [
+        889.388122986771,
+        273.337099392045
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #19",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 57,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        155.72145632008,
+        210.670437811645
+      ],
+      [
+        794.721456320098,
+        210.670437811645
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #1",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 3,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        138.388102641689,
+        379.337099392033
+      ],
+      [
+        777.388102641707,
+        379.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #20",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 60,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        325.721456320082,
+        216.003771144979
+      ],
+      [
+        964.7214563201,
+        216.003771144979
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #21",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 63,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        661.05476930836,
+        196.67043526851
+      ],
+      [
+        1300.05476930838,
+        196.67043526851
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #22",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 66,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        910.388143331793,
+        194.670432725376
+      ],
+      [
+        1549.38814333181,
+        194.670432725376
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #23",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 69,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        949.054789653405,
+        176.003766058713
+      ],
+      [
+        1588.05478965342,
+        176.003766058713
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #24",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 72,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        1142.38816367684,
+        195.337099392041
+      ],
+      [
+        1781.38816367685,
+        195.337099392041
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #25",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 75,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        1257.05472861825,
+        216.670437811632
+      ],
+      [
+        1896.05472861827,
+        216.670437811632
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #2",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 6,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        1274.38816367685,
+        168.337099392033
+      ],
+      [
+        1913.38816367686,
+        168.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #3",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 9,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        1105.38816367685,
+        159.337099392033
+      ],
+      [
+        1744.38816367686,
+        159.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #4",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 12,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        213.054789653408,
+        342.670432725367
+      ],
+      [
+        852.054789653426,
+        342.670432725367
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #5",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 15,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        326.388133159267,
+        394.337099392033
+      ],
+      [
+        965.388133159285,
+        394.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #6",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 18,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        433.388117900478,
+        328.337099392033
+      ],
+      [
+        1072.3881179005,
+        328.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #7",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 21,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        661.388133159267,
+        389.189247768328
+      ],
+      [
+        1300.38813315929,
+        389.189247768328
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #8",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 24,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        797.388102641689,
+        392.337099392033
+      ],
+      [
+        1436.38810264171,
+        392.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGB #9",
+    "group2": "Uni. 10",
+    "led_type": "RGB",
+    "universe": 9,
+    "address": 27,
+    "led_count": 1,
+    "channels_per_led": 3,
+    "rotation": 0.0,
+    "points": [
+      [
+        911.388102641689,
+        388.337099392033
+      ],
+      [
+        1550.38810264171,
+        388.337099392033
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B11",
+    "group2": "Uni. 8 ",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 196,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        901.521298604912,
+        393.490951163132
+      ],
+      [
+        1540.52129860493,
+        393.490951163132
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #94",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 204,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 161.534705187983,
+    "points": [
+      [
+        899.809035144816,
+        390.441419248798
+      ],
+      [
+        892.026609208581,
+        380.627084094325
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #95",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 228,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 211.673075001144,
+    "points": [
+      [
+        890.703559228947,
+        378.667407650607
+      ],
+      [
+        886.693255530196,
+        373.127084094325
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B12",
+    "group2": "Uni. 8 ",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 240,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        885.021298604915,
+        370.324284496468
+      ],
+      [
+        1524.02129860493,
+        370.324284496468
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #96",
+    "group2": "Uni. 8 ",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 248,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        884.021339295021,
+        367.157648347378
+      ],
+      [
+        1523.02133929504,
+        367.157648347378
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #97",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 252,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 161.534705187983,
+    "points": [
+      [
+        883.309055489868,
+        364.274742409604
+      ],
+      [
+        880.693275875248,
+        352.460417427659
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #98",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 276,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 558.133589330131,
+    "points": [
+      [
+        880.114764830941,
+        350.204078116879
+      ],
+      [
+        874.526609208581,
+        324.127084094325
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #99",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 316,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 558.133589330131,
+    "points": [
+      [
+        874.114744485886,
+        321.537401277688
+      ],
+      [
+        868.526588863526,
+        295.460407255134
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B13",
+    "group2": "Uni. 8 ",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 356,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        867.854672628355,
+        291.990961335661
+      ],
+      [
+        1506.85467262837,
+        291.990961335661
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #101",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 404,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 502.989854074537,
+    "points": [
+      [
+        837.616739980517,
+        279.824515953605
+      ],
+      [
+        813.024521139615,
+        269.506576576324
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #100",
+    "group2": "Uni. 8",
+    "led_type": "RGBW",
+    "universe": 7,
+    "address": 364,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 502.028280445423,
+    "points": [
+      [
+        864.701569724361,
+        290.61741832977
+      ],
+      [
+        839.939660094383,
+        280.713634608946
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #102",
+    "group2": "Uni. 9",
+    "led_type": "RGBW",
+    "universe": 8,
+    "address": 0,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 502.989854074537,
+    "points": [
+      [
+        810.950042796276,
+        268.657834028148
+      ],
+      [
+        786.357823955374,
+        258.339894650868
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW B13",
+    "group2": "Uni. 9",
+    "led_type": "RGBW",
+    "universe": 8,
+    "address": 40,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        783.521349467546,
+        257.824284496467
+      ],
+      [
+        1422.52134946756,
+        257.824284496467
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #91",
+    "group2": "Uni. 9",
+    "led_type": "RGBW",
+    "universe": 8,
+    "address": 48,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 204.739414554376,
+    "points": [
+      [
+        783.076939923495,
+        254.894389719288
+      ],
+      [
+        780.948672512417,
+        248.837940059677
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #1",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 0,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        416.922822326037,
+        517.889582582
+      ],
+      [
+        417.132894465122,
+        549.610475583826
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #2",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 420,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        416.931660205545,
+        507.190707820479
+      ],
+      [
+        416.931660205545,
+        516.426410236136
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW C1",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 64,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        417.013147067262,
+        504.608460526822
+      ],
+      [
+        1056.01314706726,
+        504.608460526822
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #3",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 72,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        403.818364288368,
+        492.007410188662
+      ],
+      [
+        416.664055406624,
+        501.908189803642
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #4",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 96,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        401.970380918846,
+        490.6581552081
+      ],
+      [
+        1040.97038091885,
+        490.6581552081
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #5",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 100,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        377.164864932764,
+        474.297971417592
+      ],
+      [
+        399.855324937296,
+        489.987185104426
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #6",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 140,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        361.355324937296,
+        463.82051843776
+      ],
+      [
+        375.855324937296,
+        473.487185104426
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW C2",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 164,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        358.68865827063,
+        462.987185104427
+      ],
+      [
+        997.68865827063,
+        462.987185104427
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #7",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 172,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        375.18865827063,
+        454.153851771093
+      ],
+      [
+        360.855324937296,
+        461.487185104426
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #8",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 196,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        400.355324937296,
+        441.153851771093
+      ],
+      [
+        377.355324937296,
+        453.32051843776
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #9",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 236,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        416.021991603963,
+        433.32051843776
+      ],
+      [
+        401.68865827063,
+        440.653851771093
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #10",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 260,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        432.18865827063,
+        425.153851771093
+      ],
+      [
+        417.855324937296,
+        432.487185104426
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW C3",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 284,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        434.021991603963,
+        424.487185104427
+      ],
+      [
+        1073.02199160396,
+        424.487185104427
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #11",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 292,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        462.18865827063,
+        431.82051843776
+      ],
+      [
+        436.18865827063,
+        423.987185104426
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW C4",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 332,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        464.021991603963,
+        432.487185104427
+      ],
+      [
+        1103.02199160396,
+        432.487185104427
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #12",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 340,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        463.021991603963,
+        406.153851771093
+      ],
+      [
+        463.855324937296,
+        430.153851771093
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #13",
+    "group2": "Uni. 1",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 380,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        461.18865827063,
+        376.82051843776
+      ],
+      [
+        462.68865827063,
+        403.82051843776
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #66",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 0,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 422.754437673729,
+    "points": [
+      [
+        853.186510390488,
+        441.635536218889
+      ],
+      [
+        870.932746574298,
+        458.342959934816
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW A2",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 40,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        874.743385193418,
+        461.26879675776
+      ],
+      [
+        1513.74338519341,
+        461.26879675776
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #67",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 48,
+    "led_count": 2,
+    "channels_per_led": 4,
+    "rotation": 540.250693384984,
+    "points": [
+      [
+        875.195621835937,
+        464.227115332649
+      ],
+      [
+        874.348441011169,
+        467.390105511637
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #68",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 56,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 488.257717919292,
+    "points": [
+      [
+        873.482162897833,
+        469.784373981708
+      ],
+      [
+        865.636977446749,
+        492.860768222429
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #69",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 96,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 488.257717919292,
+    "points": [
+      [
+        864.982162897832,
+        494.617707315039
+      ],
+      [
+        857.136977446749,
+        517.694101555762
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #70",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 136,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 488.257717919292,
+    "points": [
+      [
+        856.315516576218,
+        519.61770731504
+      ],
+      [
+        848.470331125134,
+        542.694101555762
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW A1",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 176,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        845.659202452799,
+        553.772313890084
+      ],
+      [
+        1484.65920245279,
+        553.772313890084
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #71",
+    "group2": "Uni. 6",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 184,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 483.665926668944,
+    "points": [
+      [
+        844.715119146189,
+        556.318672089928
+      ],
+      [
+        838.967053063126,
+        581.249251423309
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #56",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 48,
+    "led_count": 2,
+    "channels_per_led": 4,
+    "rotation": 334.307528598469,
+    "points": [
+      [
+        773.638161087187,
+        271.927688186381
+      ],
+      [
+        773.016227262528,
+        268.71281329924
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #57",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 56,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 279.494925473747,
+    "points": [
+      [
+        779.839622002292,
+        300.824713673835
+      ],
+      [
+        774.44622385568,
+        274.653851771092
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #58",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 96,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 279.494925473747,
+    "points": [
+      [
+        785.339652519872,
+        326.824693328781
+      ],
+      [
+        780.612900694872,
+        302.653851771093
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #59",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 136,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 279.494925473747,
+    "points": [
+      [
+        790.006329359067,
+        352.491380340495
+      ],
+      [
+        785.779567361539,
+        328.487185104426
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW A6",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 176,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        791.743354675836,
+        357.435453251917
+      ],
+      [
+        1430.74335467582,
+        357.435453251917
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #60",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 184,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 241.193364784643,
+    "points": [
+      [
+        814.868837893998,
+        371.708225110604
+      ],
+      [
+        794.047668840586,
+        359.297044760441
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW A5",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 224,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        817.885704327385,
+        374.405047051812
+      ],
+      [
+        1456.88570432737,
+        374.405047051812
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "?? RGBW #61",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 0,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 4.86697146970388,
+    "points": [
+      [
+        823.04402037575,
+        381.051290804034
+      ],
+      [
+        820.318959548499,
+        376.379757957319
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #62",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 244,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 247.563575773327,
+    "points": [
+      [
+        837.701142460865,
+        403.390793452968
+      ],
+      [
+        823.627961981589,
+        382.608468419606
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW A4",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 284,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        838.576677836643,
+        405.935453251913
+      ],
+      [
+        1477.57667783663,
+        405.935453251913
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #63",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 292,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": -92.5028697206751,
+    "points": [
+      [
+        835.765082432733,
+        421.402028383839
+      ],
+      [
+        837.887593565645,
+        408.906078177785
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW A3",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 316,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        835.410031515022,
+        424.102119918578
+      ],
+      [
+        1474.41003151501,
+        424.102119918578
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #64",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 324,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 180.166681571962,
+    "points": [
+      [
+        842.349082687751,
+        431.16060434392
+      ],
+      [
+        837.695042033552,
+        426.813713369371
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW #65",
+    "group2": "Uni. 5",
+    "led_type": "RGBW",
+    "universe": 4,
+    "address": 336,
+    "led_count": 5,
+    "channels_per_led": 4,
+    "rotation": 182.323106135336,
+    "points": [
+      [
+        851.932312038038,
+        440.580004030644
+      ],
+      [
+        843.611885569518,
+        432.227722080336
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "Uni.3 RGBW",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 140,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        704.13295697312,
+        174.423994707114
+      ],
+      [
+        703.326838484147,
+        157.372173952948
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "Uni.3 RGBW",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 184,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        701.991895497334,
+        207.588630651639
+      ],
+      [
+        704.857877816197,
+        201.538205091368
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "Uni.9 RGBW",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 8,
+    "address": 60,
+    "led_count": 11,
+    "channels_per_led": 4,
+    "rotation": -0.505800196883001,
+    "points": [
+      [
+        780.563731495863,
+        248.143161554965
+      ],
+      [
+        771.379441465652,
+        223.007209893333
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "Uni.9 RGBW",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 8,
+    "address": 108,
+    "led_count": 7,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        769.659453839613,
+        220.835319185854
+      ],
+      [
+        752.741024836592,
+        213.101180213044
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "Uni.9 RGBW",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 8,
+    "address": 144,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        752.834123472461,
+        211.310244842196
+      ],
+      [
+        752.438939328296,
+        191.404613016193
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 0,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        461.383336141778,
+        375.559017370176
+      ],
+      [
+        459.472677141336,
+        346.262246030061
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 48,
+    "led_count": 7,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        458.835790807855,
+        342.090205754929
+      ],
+      [
+        454.059143306749,
+        324.607147661114
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 76,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        452.785371117021,
+        321.845583199994
+      ],
+      [
+        452.785371117021,
+        681.845583199995
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 84,
+    "led_count": 18,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        449.282495805644,
+        319.516597970298
+      ],
+      [
+        409.795543129837,
+        302.957553299798
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 156,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        405.018893236532,
+        300.828337893407
+      ],
+      [
+        405.018893236532,
+        660.828337893408
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 164,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        405.018895628731,
+        297.529349338541
+      ],
+      [
+        411.069315796798,
+        274.601441333234
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 244,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        411.706201012106,
+        272.053906465266
+      ],
+      [
+        414.572190630942,
+        258.687058329321
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 204,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        415.527521627001,
+        255.813291172509
+      ],
+      [
+        421.896383465971,
+        226.524298488543
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 268,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        422.214826632711,
+        223.339866821139
+      ],
+      [
+        425.399258300115,
+        216.971003486331
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 1,
+    "address": 284,
+    "led_count": 16,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        426.354584595131,
+        213.778791642952
+      ],
+      [
+        445.7796209715,
+        178.590220276401
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 0,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        450.556272133165,
+        176.520944744958
+      ],
+      [
+        463.930881475701,
+        172.700878136356
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 24,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        467.115332644079,
+        172.177296249238
+      ],
+      [
+        467.115332644079,
+        532.17729624924
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 32,
+    "led_count": 12,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        468.707528976807,
+        169.774076638418
+      ],
+      [
+        468.389085810067,
+        138.63109278854
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 80,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        468.389086646219,
+        135.874773546913
+      ],
+      [
+        468.389086646219,
+        495.874773546913
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 88,
+    "led_count": 9,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        470.936627100683,
+        135.12333373448
+      ],
+      [
+        490.044018055893,
+        132.579647081312
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 132,
+    "led_count": 21,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        493.227656662466,
+        132.257349036704
+      ],
+      [
+        542.587140568056,
+        109.651739076005
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 216,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        544.496996780855,
+        109.010993459238
+      ],
+      [
+        554.68798090419,
+        110.925511742966
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 2,
+    "address": 240,
+    "led_count": 61,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        561.374548432563,
+        112.195459370442
+      ],
+      [
+        576.978263602842,
+        116.016777371326
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 0,
+    "address": 40,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        459.472676628542,
+        343.818173798731
+      ],
+      [
+        459.472676628542,
+        703.818173798733
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 0,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        667.098343114945,
+        124.617471916009
+      ],
+      [
+        651.175464445464,
+        130.665131029976
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 52,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        688.43403528655,
+        130.667892084076
+      ],
+      [
+        678.243130954246,
+        121.430280897127
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 76,
+    "led_count": 5,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        701.171761956165,
+        144.042505087172
+      ],
+      [
+        690.026251120252,
+        132.260107917778
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 136,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        745.116215391558,
+        229.815520071932
+      ],
+      [
+        745.116215391558,
+        589.815520071933
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 240,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        729.194047526235,
+        219.94377715865
+      ],
+      [
+        729.194047526235,
+        579.943777158652
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 212,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        705.947716022086,
+        213.574914464967
+      ],
+      [
+        705.947716022086,
+        573.574914464969
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 204,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        703.081692926528,
+        210.390478903569
+      ],
+      [
+        703.081692926528,
+        570.390478903571
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 308,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        771.870978553777,
+        263.780851907024
+      ],
+      [
+        754.993733306878,
+        242.440793702537
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 288,
+    "led_count": 5,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        747.032654138368,
+        232.569055533586
+      ],
+      [
+        754.038403806657,
+        241.167021035576
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 284,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        741.931778236206,
+        227.267945867111
+      ],
+      [
+        741.931778236206,
+        587.267945867113
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 252,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        740.029837685685,
+        225.879628534564
+      ],
+      [
+        731.750315350435,
+        220.784537866718
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 96,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        702.126397299824,
+        147.338717784211
+      ],
+      [
+        702.126397299824,
+        507.338717784211
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 100,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        676.829601497082,
+        120.474946802918
+      ],
+      [
+        671.570562366532,
+        123.026866559208
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 112,
+    "led_count": 2,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        703.09643587383,
+        155.508069566726
+      ],
+      [
+        702.444823080466,
+        150.408612058406
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 348,
+    "led_count": 10,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        705.342899060191,
+        194.776383232248
+      ],
+      [
+        704.06912639323,
+        176.943565894786
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 388,
+    "led_count": 2,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        705.643981207753,
+        200.09011291038
+      ],
+      [
+        705.478605038656,
+        196.261659964461
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 216,
+    "led_count": 6,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        725.069014378916,
+        218.559816581322
+      ],
+      [
+        709.465299208637,
+        214.738498580437
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 8,
+    "address": 168,
+    "led_count": 3,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        752.277581290596,
+        188.439720680195
+      ],
+      [
+        752.107543856856,
+        178.525309097396
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 5,
+    "address": 232,
+    "led_count": 2,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        847.633261420078,
+        546.007952927903
+      ],
+      [
+        846.271481814681,
+        550.093319672508
+      ]
+    ]
+  },
+  {
+    "stage": "HOTA Gallery",
+    "name": "RGBW01",
+    "group2": "",
+    "led_type": "RGBW",
+    "universe": 3,
+    "address": 40,
+    "led_count": 1,
+    "channels_per_led": 4,
+    "rotation": 0.0,
+    "points": [
+      [
+        772.487495084943,
+        265.937419301285
+      ],
+      [
+        772.487495084943,
+        625.937419301308
+      ]
+    ]
+  }
+]
