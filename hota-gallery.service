@@ -64,7 +64,13 @@ PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_INET AF_UNIX
+# AF_NETLINK (beyond the plain AF_INET/AF_UNIX this process otherwise
+# needs) is for the one `ip addr show` subprocess call behind "Scan to
+# connect"'s WiFi-address lookup (webapp._wifi_ip) - the `ip` tool talks to
+# the kernel over a netlink socket even for a read-only query, so without
+# this the call doesn't error loudly, it just silently returns nothing
+# and the dialog falls back to the wired Art-Net address instead.
+RestrictAddressFamilies=AF_INET AF_UNIX AF_NETLINK
 RestrictNamespaces=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
