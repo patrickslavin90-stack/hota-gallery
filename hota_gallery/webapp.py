@@ -128,7 +128,7 @@ class Store:
     def discover_artnet_nodes(self) -> List[Dict[str, Any]]:
         cfg = self.engine.cfg
         bind_ip = cfg.get("bind_ip") or Engine._auto_bind_ip()
-        return discover_nodes(bind_ip, timeout=2.0)
+        return discover_nodes(bind_ip, timeout=3.0)
 
     def replace_config(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
