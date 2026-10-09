@@ -466,6 +466,32 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .stage { grid-template-rows: auto; }
   .presets { border-top: 0; }
 }
+@media (pointer: coarse) and (min-width: 821px) {
+  /* Touch tablet (e.g. a wall-mounted 1920x1080 panel) - same two-pane
+     layout as desktop, canvas and gallery preview included (unlike the
+     phone breakpoint above, which drops it): there's room for both and a
+     visitor or staff member standing at a tablet wants to see the facade
+     they're lighting, not just a list of controls. What actually needs to
+     change is tap-target size - every control here was sized for a mouse
+     pointer, and there's no hover to reveal the preset edit/delete icons
+     on a finger. */
+  :root { --panel-w: 400px; }
+  body { font-size: 14px; }
+  .btn, .seg button, .lights, .ps-trigger,
+  input[type="text"], input[type="number"], input[type="time"], select, textarea {
+    height: 44px;
+  }
+  .btn.sm, .chips button, .dayset button {
+    height: 38px; padding: 0 14px; font-size: 13px;
+  }
+  .tabs button { padding: 0 18px; }
+  .chips { gap: 7px; }
+  input[type="checkbox"] { width: 20px; height: 20px; }
+  .colour-in input[type="color"] { width: 38px; height: 38px; }
+  /* No hover on touch - the edit/delete icons need to just be there. */
+  .preset .tools { opacity: 1; }
+  .ps-item { min-height: 44px; }
+}
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
   .dlg, .dlg::backdrop, .ps-list { animation: none !important; }
