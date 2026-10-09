@@ -455,6 +455,17 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .brand svg { height: 14px; }
   .tabs button { padding: 0 9px; }
 }
+@media (max-width: 600px) {
+  /* Phone: if you're using this you're almost always standing outside
+     looking straight at the real building, so the elevations just cost
+     scroll space for nothing - hide the canvas and its toolbar (zoom,
+     layout picker, GIF export - all meaningless without it) and let
+     Presets + the look panel fill the screen instead. Selecting fixtures
+     still works: the Selection chips below never depended on the canvas. */
+  .canvas-wrap { display: none; }
+  .stage { grid-template-rows: auto; }
+  .presets { border-top: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
   .dlg, .dlg::backdrop, .ps-list { animation: none !important; }
