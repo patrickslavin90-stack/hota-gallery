@@ -482,3 +482,8 @@ a.link:hover { color: #fff; }
 @media (max-width: 820px) {
   .gif-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- 3D view ---------- */
+.view3d { position: absolute; inset: 0; }
+.view3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.view3d-canvas:active { cursor: grabbing; }

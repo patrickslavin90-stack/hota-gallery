@@ -255,6 +255,8 @@
   // Fixture positions on the elevations, shipped with the UI. Used when the
   // controller's config doesn't have its own "Building" layout yet - it gets
   // saved there the first time someone moves fixtures in it.
+  let b3d = null; // rough 3D massing derived from the elevation grids (tools/build_3d.py)
+  try { b3d = await (await fetch("static/building3d.json", { cache: "no-store" })).json(); } catch { b3d = null; }
   let builtinBuilding = null;
   try { builtinBuilding = await (await fetch("static/building-layout.json", { cache: "no-store" })).json(); } catch { builtinBuilding = null; }
   const allLayouts = () => {
@@ -840,7 +842,7 @@
   function frame() {
     if (!tabs.live.hidden) {
       if (api.kind === "local") pollPreview();
-      draw();
+      if (!view3dOn) draw();
     }
     requestAnimationFrame(frame);
   }
@@ -945,6 +947,40 @@
   $("#zoomOut").addEventListener("click", () => zoomAt(1 / 1.3));
   $("#zoomFit").addEventListener("click", () => fitView("all"));
 
+  // -- 3D view (prototype) -----------------------------------------------------
+  let view3dOn = false, view3d = null, view3dLoading = false;
+  async function setView3d(on) {
+    if (on && !view3d) {
+      if (view3dLoading) return;
+      view3dLoading = true;
+      $("#toggle3d").textContent = "Loading 3D…";
+      try {
+        view3d = await HotaView3D.create($("#view3d"), {
+          elev, b3d,
+          getLayout: () => allLayouts().find(l => l.name === "Building"),
+          getFixtures: () => cfg.fixtures,
+          getPreview: () => live.preview,
+        });
+        $("#view3dSeg").replaceChildren(...view3d.views.map(v => h("button", { type: "button", text: v, onclick: () => view3d.setView(v) })));
+      } catch (e) {
+        toast(`The 3D view couldn't start: ${errText(e)}`, true);
+        on = false;
+      }
+      view3dLoading = false;
+      $("#toggle3d").textContent = "3D";
+    }
+    view3dOn = on;
+    $("#toggle3d").setAttribute("aria-pressed", String(on));
+    $("#view3d").hidden = !on;
+    canvas.hidden = on;
+    $("#view3dSeg").hidden = !on;
+    $("#viewSeg").hidden = on || !isBuilding();
+    document.querySelector('.seg[aria-label="Zoom"]').hidden = on;
+    $("#readout").textContent = on ? "Drag to orbit, right-drag to pan, scroll to zoom. Selecting fixtures works in the 2D view." : "";
+    if (view3d) view3d.setActive(on);
+  }
+  $("#toggle3d").addEventListener("click", () => setView3d(!view3dOn));
+
   // -- layouts --------------------------------------------------------------
   const layoutSelect = $("#layoutSelect");
   function renderLayoutSelect() {
@@ -952,7 +988,9 @@
     if (!layouts.find(l => l.name === live.layoutName)) live.layoutName = (layouts.find(l => l.name === "Building") || layouts[0] || {}).name || null;
     layoutSelect.replaceChildren(...layouts.map(l => h("option", { value: l.name, text: l.name, selected: l.name === live.layoutName })));
     const seg = $("#viewSeg");
-    seg.hidden = !isBuilding();
+    seg.hidden = !isBuilding() || view3dOn;
+    $("#toggle3d").hidden = !(isBuilding() && b3d && window.HotaView3D);
+    if (view3dOn && !isBuilding()) setView3d(false);
     if (isBuilding()) {
       seg.replaceChildren(
         h("button", { type: "button", "data-view": "all", text: "All", onclick: () => fitView("all") }),
@@ -986,6 +1024,7 @@
     try {
       cfg.layouts = await api.putLayouts(layouts);
       bgCache.clear(); baseDirty = true;
+      if (view3d) view3d.rebuild();
       renderLayoutSelect();
       if (msg) toast(msg);
       return true;
