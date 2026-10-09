@@ -294,6 +294,53 @@
   indexConfig();
 
   // ===================================================================
+  // remote PIN gate - see renderRemote() in Settings for where this is
+  // set. A client-side speed bump only, same philosophy as the house-
+  // lights bridge's admin PIN: nothing server-side enforces it, so it
+  // only ever blocks the UI, never the API. Skipped entirely on this
+  // kiosk's own screen (isLocalHost) - you're already standing at the
+  // building. Anyone else is asked once per browser, then it's
+  // remembered in localStorage so the same phone isn't asked again.
+  // ===================================================================
+  const PIN_OK_KEY = "hotaRemotePinOk";
+  async function requireRemotePin() {
+    if (isLocalHost || !cfg.remote_pin) return;
+    let stored = null;
+    try { stored = localStorage.getItem(PIN_OK_KEY); } catch { /* private browsing - just ask every time */ }
+    if (stored === cfg.remote_pin) return;
+    await new Promise(resolve => {
+      const field = h("input", { type: "tel", inputmode: "numeric", class: "dlg-input", placeholder: "PIN", autocomplete: "off" });
+      const errSlot = h("div", { class: "alert-slot" });
+      const form = h("form", { method: "dialog", class: "dlg-body" },
+        h("h3", { class: "dlg-title", id: "dlgTitle", text: "Enter PIN" }),
+        h("p", { class: "dlg-msg", text: "Ask gallery staff for the access PIN to control the lights remotely." }),
+        field, errSlot,
+        h("div", { class: "dlg-actions" }, h("button", { type: "submit", class: "btn primary", text: "Unlock" })));
+      const dlg = h("dialog", { class: "dlg", "aria-labelledby": "dlgTitle" }, form);
+      form.addEventListener("submit", e => {
+        e.preventDefault();
+        const val = field.value.trim();
+        if (val === cfg.remote_pin) {
+          try { localStorage.setItem(PIN_OK_KEY, val); } catch { /* private browsing - just re-ask next time */ }
+          dlg.close(); dlg.remove();
+          resolve();
+        } else {
+          slideAlert(errSlot, "Wrong PIN", "Try again.");
+          field.value = "";
+          field.focus();
+        }
+      });
+      // Deliberately no cancel/backdrop-close - unlike every other dialog
+      // in this app, there's nothing behind this one to fall back to.
+      dlg.addEventListener("cancel", e => e.preventDefault());
+      document.body.append(dlg);
+      dlg.showModal();
+      field.focus();
+    });
+  }
+  await requireRemotePin();
+
+  // ===================================================================
   // clock + tabs
   // ===================================================================
   const clockEl = $("#clock");
@@ -1502,13 +1549,28 @@
   // Demo mode has no controller to hand a phone, so the card just
   // explains that instead.
   function renderRemote() {
+    const pinAlertSlot = h("div", { class: "alert-slot" });
+    const pin = h("input", { type: "text", id: "dPin", value: cfg.remote_pin || "", placeholder: "No PIN - anyone can connect", style: "max-width:160px" });
     $("#remoteCard").replaceChildren(
-      h("header", null, h("h3", { text: "Remote access" })),
+      h("header", null, h("h3", { text: "Remote access" }), api.kind === "controller"
+        ? h("div", { class: "actions" }, h("button", { type: "button", class: "btn sm primary", text: "Save", onclick: async () => {
+          const val = pin.value.trim();
+          if (val && !/^[0-9]{4,8}$/.test(val)) return slideAlert(pinAlertSlot, "Check the PIN", "Use 4-8 digits, or leave it empty to turn the PIN off.");
+          try {
+            cfg = await api.putConfig({ ...cfg, remote_pin: val || null });
+            pinAlertSlot.replaceChildren();
+            toast(val ? "PIN saved." : "PIN turned off - remote access no longer asks for one.");
+          } catch (e) { slideAlert(pinAlertSlot, "PIN wasn't saved", errText(e)); }
+        } }))
+        : null),
+      pinAlertSlot,
       h("div", { class: "body" },
         api.kind === "controller"
           ? [
             h("p", { class: "hint", style: "margin-top:0", text: "Scan this from a phone on the gallery Wi-Fi to open the live control - handy for checking the facade from outside." }),
             h("button", { type: "button", class: "btn primary", text: "Scan to connect", onclick: openRemoteAccessDialog }),
+            h("div", { class: "field", style: "margin-top:14px" }, h("label", { for: "dPin", text: "Access PIN" }), pin),
+            h("p", { class: "hint", text: "Asked once per browser for anyone connecting remotely - this kiosk screen is never asked. This is a speed bump, not real security: it doesn't stop someone who reaches the controller's network directly." }),
           ]
           : h("p", { class: "hint", style: "margin-top:0", text: "Scanning to connect needs the real controller - not available in the demo." })));
   }

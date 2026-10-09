@@ -117,6 +117,10 @@ CONFIG_DEFAULTS: Dict[str, Any] = {
     "bind_ip": None,
     "web_port": 8080,
     "device_name": "",
+    # Client-side speed bump for remote (non-kiosk) connections only - not
+    # real security, same philosophy as the house-lights bridge's admin
+    # PIN. null/"" turns it off; the kiosk screen itself never asks.
+    "remote_pin": "1234",
     "fixtures": [],
     "zones": [],
     "current_look": {"default": off_look(), "fixtures": {}},
@@ -609,6 +613,9 @@ def validate_config(raw: Any) -> Dict[str, Any]:
 
     if not isinstance(cfg["device_name"], str):
         errors.append(f"device_name must be a string, got {cfg['device_name']!r}")
+
+    if cfg["remote_pin"] not in (None, "") and not (isinstance(cfg["remote_pin"], str) and cfg["remote_pin"].isdigit()):
+        errors.append(f"remote_pin must be a string of digits, or null/empty to disable it, got {cfg['remote_pin']!r}")
 
     zones = cfg["zones"]
     zone_names: Dict[str, int] = {}
