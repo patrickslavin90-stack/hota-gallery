@@ -47,6 +47,8 @@
             <button type="button" class="btn" id="toggle3d" aria-pressed="false" hidden title="Rotate around a rough 3D model of the gallery">3D</button>
             <div class="seg" id="view3dSeg" role="group" aria-label="Camera" hidden></div>
             <span class="spacer"></span>
+            <button type="button" class="btn" id="toggleBlind" aria-pressed="false" title="Program and preview a look without sending anything to the real lights">Blind</button>
+            <button type="button" class="btn primary" id="blindGoLive" hidden title="Send the blind look to the real lights now">Go live</button>
             <button type="button" class="btn" id="clearProgram" title="Drop every manual look and show whatever the schedule says should be playing right now. Click again to confirm.">Clear</button>
             <button type="button" class="btn" id="exportGif" title="Save the current live look as a looping GIF for clients or approval">Export GIF</button>
             <div class="menu">
@@ -66,6 +68,7 @@
               </div>
             </div>
           </div>
+          <div class="blind-banner" id="blindBanner" hidden>Blind - programming a look here does not affect the real lights</div>
           <div class="editbar" id="editbar" hidden>
             <span id="editMsg">Moving fixtures: drag the selection, or nudge with the arrow keys.</span>
             <button type="button" class="btn sm" id="editDiscard">Discard</button>

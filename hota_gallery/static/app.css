@@ -218,6 +218,14 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .menu-pop label.file { display: block; padding: 7px 12px; color: var(--text-2); cursor: pointer; border-radius: var(--pill); }
 .menu-pop label.file:hover { background: var(--surface-2); color: var(--text); }
 
+#toggleBlind[aria-pressed="true"] { background: rgba(252,187,0,.16); border-color: var(--warn); color: var(--warn); }
+.blind-banner {
+  position: absolute; z-index: 2; top: 56px; left: 10px; right: 10px;
+  text-align: center; padding: 7px 14px; border-radius: var(--pill);
+  background: rgba(252,187,0,.14); border: 1px solid rgba(252,187,0,.42);
+  color: var(--warn); font-size: 12px; font-weight: 500; pointer-events: none;
+}
+
 .editbar {
   position: absolute; z-index: 2; left: 50%; bottom: 12px; transform: translateX(-50%);
   display: flex; gap: 8px; align-items: center;

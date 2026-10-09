@@ -593,6 +593,22 @@
     marquee: null,
     preview: null,
   };
+  // -- blind mode -----------------------------------------------------------
+  // Program and preview a look without ever touching the real engine - the
+  // lighting-console idea of "blind" vs "live". Driven by the same
+  // client-side engine the demo backend uses for its own preview (engine.js),
+  // fed a look that only ever lives in this tab; while blind is on,
+  // sendLook/selection-revert/Clear all write into `blind` instead of
+  // calling putLook/putSelection, and the 2D canvas + 3D view (both already
+  // just read live.preview) get their frames from this local engine instead
+  // of the controller. Nothing here touches the real fixtures until "Go
+  // live" sends the whole sandbox look across in one call.
+  const blindEngine = HotaEngine.createEngine(cfg);
+  let blindOn = false;
+  let blind = { default: clone(HotaEngine.OFF), fixtures: {} };
+  let blindT0 = performance.now();
+  const activeLook = () => (blindOn ? blind : cfg.current_look);
+
   const isBuilding = () => live.layoutName === "Building" && elev;
   const currentLayout = () => allLayouts().find(l => l.name === live.layoutName) || null;
   const layoutFixtures = () => {
@@ -846,11 +862,12 @@
   // row mark the controller as lost (red header, polling slows to every 2 s
   // so the console doesn't flood); the first success reconnects.
   let previewBusy = false, failStreak = 0, pollCount = 0, lastLookEdit = 0;
+  let realPreview = null; // last preview actually fetched from the controller/demo engine
   async function pollPreview() {
     if (previewBusy) return;
     previewBusy = true;
     try {
-      live.preview = await api.getPreview();
+      realPreview = await api.getPreview();
       failStreak = 0;
       if (offline) await goOnline();
     } catch {
@@ -889,6 +906,11 @@
   function frame() {
     if (!tabs.live.hidden) {
       if (api.kind === "local") pollPreview();
+      // Both the 2D canvas (draw, below) and the 3D view (view3d.js's own
+      // getPreview callback) just read live.preview - swapping its source
+      // here is the whole of what makes blind mode show up everywhere the
+      // real preview normally would, with no further plumbing needed.
+      live.preview = blindOn ? blindEngine.preview((performance.now() - blindT0) / 1000) : realPreview;
       if (!view3dOn) draw();
     }
     requestAnimationFrame(frame);
@@ -1030,6 +1052,8 @@
     $("#panel").hidden = on;
     document.querySelector(".presets").hidden = on;
     $("#clearProgram").hidden = on;
+    $("#toggleBlind").hidden = on;
+    $("#blindGoLive").hidden = on || !blindOn;
     document.querySelector(".live").classList.toggle("full-width", on);
     if (view3d) view3d.setActive(on);
   }
@@ -1219,6 +1243,13 @@
   }
   $("#selClear").addEventListener("click", () => { live.selection.clear(); selectionChanged(); });
   $("#selRevert").addEventListener("click", async () => {
+    if (blindOn) {
+      for (const k of live.selection) delete blind.fixtures[k];
+      blindEngine.setCurrentLook(blind);
+      toast("Selection reverted to the default look (blind - the real fixtures are untouched).");
+      updateTarget(); loadEditorFromTarget();
+      return;
+    }
     try {
       cfg.current_look = await api.putSelection([...live.selection], null);
       toast("Selection reverted to the default look.");
@@ -1230,7 +1261,7 @@
     const n = live.selection.size;
     $("#selCount").textContent = n ? `${n} selected` : "";
     updateSelChips();
-    $("#selRevert").hidden = !n || ![...live.selection].some(k => cfg.current_look.fixtures[k]);
+    $("#selRevert").hidden = !n || ![...live.selection].some(k => activeLook().fixtures[k]);
     updateTarget();
     loadEditorFromTarget();
   }
@@ -1240,7 +1271,7 @@
   function updateTarget() {
     const n = live.selection.size;
     const t = $("#target");
-    const own = Object.keys(cfg.current_look.fixtures || {}).filter(k => fixtureIndex.has(k));
+    const own = Object.keys(activeLook().fixtures || {}).filter(k => fixtureIndex.has(k));
     const total = cfg.fixtures.length;
     t.classList.toggle("sel", n > 0);
     t.classList.toggle("warn", !n && own.length > 0);
@@ -1260,6 +1291,13 @@
       h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" },
         h("button", { type: "button", class: "btn sm", text: "Select them", onclick: () => selectKeys(own) }),
         h("button", { type: "button", class: "btn sm", text: "Revert all to default", onclick: async () => {
+          if (blindOn) {
+            for (const k of own) delete blind.fixtures[k];
+            blindEngine.setCurrentLook(blind);
+            toast("Every fixture now follows the default look (blind).");
+            updateTarget();
+            return;
+          }
           try { cfg.current_look = await api.putSelection(own, null); toast("Every fixture now follows the default look."); updateTarget(); }
           catch (e) { toast(errText(e), true); }
         } })),
@@ -1277,19 +1315,53 @@
   // anything that reads cfg.current_look right after a click (Export GIF,
   // the target box, presets) sees the look just picked, not the one before
   // the controller replied. The reply (or the 5 s status refresh) settles it.
+  // In blind mode there's no "save in the background" at all - the look
+  // only ever lands in `blind`, feeding the local preview engine, and the
+  // real controller is never called.
   function sendLook(look, keys) {
     lastLookEdit = Date.now();
-    if (keys.length) for (const k of keys) cfg.current_look.fixtures[k] = clone(look);
-    else cfg.current_look.default = clone(look);
+    const target = activeLook();
+    if (keys.length) for (const k of keys) target.fixtures[k] = clone(look);
+    else target.default = clone(look);
     updateTarget();
+    if (blindOn) { blindEngine.setCurrentLook(blind); return; }
     sendLookRemote(look, keys);
   }
   const liveEditor = LookEditor($("#liveLook"), look => sendLook(look, [...live.selection]));
   function targetLook() {
     const first = [...live.selection][0];
-    return (first && cfg.current_look.fixtures[first]) || cfg.current_look.default || HotaEngine.OFF;
+    const cl = activeLook();
+    return (first && cl.fixtures[first]) || cl.default || HotaEngine.OFF;
   }
   function loadEditorFromTarget() { liveEditor.set(targetLook()); }
+
+  function setBlind(on) {
+    if (on === blindOn) return;
+    if (on) {
+      blind = clone(cfg.current_look);
+      blindEngine.setConfig(cfg);
+      blindEngine.setCurrentLook(blind);
+      blindT0 = performance.now();
+    }
+    blindOn = on;
+    const btn = $("#toggleBlind");
+    btn.setAttribute("aria-pressed", String(on));
+    btn.textContent = on ? "Blind: on" : "Blind";
+    $("#blindBanner").hidden = !on;
+    $("#blindGoLive").hidden = !on;
+    $("#clearProgram").title = on
+      ? "Reset the blind sandbox to match what's actually live. Click again to confirm."
+      : "Drop every manual look and show whatever the schedule says should be playing right now. Click again to confirm.";
+    updateTarget(); loadEditorFromTarget(); renderPresets();
+  }
+  $("#toggleBlind").addEventListener("click", () => setBlind(!blindOn));
+  $("#blindGoLive").addEventListener("click", async () => {
+    if (!(await ask({ title: "Send this to the real lights?", message: "The facade switches to exactly what's shown here right now. You stay in blind mode afterwards - turn it off separately if you're done.", ok: "Go live" }))) return;
+    try {
+      cfg.current_look = await api.setCurrentLook(clone(blind));
+      toast("Sent to the real lights.");
+    } catch (e) { toast(errText(e), true); }
+  });
 
   // -- presets -------------------------------------------------------------------
   const presetName = (p, i) => p.name || `Preset ${i + 1}`;
@@ -2020,6 +2092,13 @@
         return;
       }
       disarm();
+      if (blindOn) {
+        blind = clone(cfg.current_look);
+        blindEngine.setCurrentLook(blind);
+        updateTarget(); loadEditorFromTarget();
+        toast("Blind sandbox reset to match what's actually live.");
+        return;
+      }
       lastLookEdit = Date.now();
       try {
         cfg.current_look = await api.clear();
@@ -2036,15 +2115,15 @@
       new Date().toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })].filter(Boolean).join(", ");
   };
   $("#exportGif").addEventListener("click", () => {
-    const def = cfg.current_look.default || HotaEngine.OFF;
+    const def = activeLook().default || HotaEngine.OFF;
     const presets = (cfg.presets || []).slice().sort((a, b) => a.slot - b.slot);
     const i = presets.findIndex(p => JSON.stringify(p.look) === JSON.stringify(def));
-    if (api.kind === "controller") refreshCurrentLook(); // pick up anything changed elsewhere
+    if (api.kind === "controller" && !blindOn) refreshCurrentLook(); // pick up anything changed elsewhere
     HotaExport.open({
       cfg, elev, layout: currentLayout(), view: currentView || "all",
       title: i >= 0 ? presetName(presets[i], i) : "Untitled concept",
-      subtitle: describeLook(cfg.current_look),
-      getCurrentLook: () => cfg.current_look,
+      subtitle: describeLook(activeLook()) + (blindOn ? " (blind - not live)" : ""),
+      getCurrentLook: () => activeLook(),
       describe: describeLook,
       onDone: msg => toast(msg),
       onError: msg => toast(`The GIF couldn't be made: ${msg}`, true),

@@ -28,6 +28,7 @@
     putLook(look) { return request("PUT", "/api/look", look); }
     putSelection(keys, look) { return request("PUT", "/api/look/selection", { fixtures: keys, look }); }
     clear() { return request("PUT", "/api/clear", {}); }
+    setCurrentLook(cl) { return request("PUT", "/api/look/full", cl); }
     putPresets(list) { return request("PUT", "/api/presets", list); }
     putSchedule(list) { return request("PUT", "/api/schedule", list); }
     putRandomizer(obj) { return request("PUT", "/api/randomizer", obj); }
@@ -67,6 +68,11 @@
     async putSelection(keys, look) {
       const over = this.cfg.current_look.fixtures || (this.cfg.current_look.fixtures = {});
       for (const k of keys) { if (look) over[k] = look; else delete over[k]; }
+      this._save();
+      return this.cfg.current_look;
+    }
+    async setCurrentLook(cl) {
+      this.cfg.current_look = cl;
       this._save();
       return this.cfg.current_look;
     }

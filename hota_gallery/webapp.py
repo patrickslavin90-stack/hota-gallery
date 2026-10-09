@@ -151,6 +151,19 @@ class Store:
             self.engine.set_look(validated["current_look"])
             return validated["current_look"]
 
+    def set_current_look(self, current_look: Dict[str, Any]) -> Dict[str, Any]:
+        """Replace the whole current_look (default + every per-fixture
+        override) in one shot - the Live tab's "Go live" button, sending a
+        blind-programmed look across in a single atomic write instead of
+        one putLook plus one putSelection per distinct override look."""
+        with self._lock:
+            cfg = dict(self.engine.cfg)
+            cfg["current_look"] = current_look
+            validated = validate_config(cfg)
+            save_config(self.config_path, validated)
+            self.engine.set_look(validated["current_look"])
+            return validated["current_look"]
+
     def move_fixture(self, key: str, dx: float, dy: float) -> None:
         """Translate one fixture's geometry by (dx, dy) - both of its two
         points move together, a rigid shift rather than independent point
@@ -515,6 +528,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, look)
             elif self.path == "/api/clear":
                 look = self.store.clear_to_schedule()
+                self._send_json(200, look)
+            elif self.path == "/api/look/full":
+                look = self.store.set_current_look(body)
                 self._send_json(200, look)
             elif self.path == "/api/look/selection":
                 look = self.store.set_fixture_looks(body["fixtures"], body.get("look"))
