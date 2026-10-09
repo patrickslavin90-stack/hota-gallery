@@ -12,12 +12,15 @@ not a different architecture.
 
 from __future__ import annotations
 
+import datetime
+import io
 import json
 import logging
 import mimetypes
 import re
 import subprocess
 import threading
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -307,6 +310,44 @@ class Store:
             return None
         return path
 
+    def create_backup(self) -> bytes:
+        """Everything that's irreplaceable about *this venue's* setup, in
+        one zip - config.json (fixtures, zones, schedule, presets, current
+        look, layouts) plus any layout background reference images. The
+        application code isn't included: that's already safe in git, and
+        bundling it here would conflate "this install's software version"
+        with "this venue's data", which is the thing actually at risk of
+        being lost for good if the Pi's SD card ever dies."""
+        with self._lock:
+            cfg = self.engine.cfg
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("config.json", json.dumps(cfg, indent=2))
+                if self.backgrounds_dir.is_dir():
+                    for path in sorted(self.backgrounds_dir.iterdir()):
+                        if path.is_file():
+                            zf.write(path, f"backgrounds/{path.name}")
+                info = (
+                    f"HOTA Gallery lighting - backup\n"
+                    f"Device:    {cfg.get('device_name') or '(unnamed)'}\n"
+                    f"Made:      {datetime.datetime.now().isoformat(timespec='seconds')}\n"
+                    f"Fixtures:  {len(cfg['fixtures'])}\n"
+                    f"Zones:     {len(cfg['zones'])}\n"
+                    f"Schedule:  {len(cfg['schedule'])} entries\n"
+                    f"Presets:   {len(cfg['presets'])}\n"
+                    f"Layouts:   {len(cfg['layouts'])}\n"
+                    f"\n"
+                    f"To restore: Settings > Configuration file > Import config.json...\n"
+                    f"on the controller, and pick config.json from this zip. The\n"
+                    f"backgrounds/ images (if any) are only the layout editor's\n"
+                    f"reference pictures, not anything the lights themselves read -\n"
+                    f"put a file back at the same name under its data directory's\n"
+                    f"backgrounds/ folder only if you need the layout editor's\n"
+                    f"picture back too.\n"
+                )
+                zf.writestr("backup-info.txt", info)
+            return buf.getvalue()
+
 
 class Handler(BaseHTTPRequestHandler):
     store: Store  # set on the class by create_server before use
@@ -369,6 +410,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, self.store.get_config()["clock_chime"])
         elif self.path == "/api/layouts":
             self._send_json(200, self.store.get_config()["layouts"])
+        elif self.path == "/api/backup":
+            body = self.store.create_backup()
+            stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            device = re.sub(r"[^A-Za-z0-9_-]+", "_", self.store.get_config().get("device_name") or "hota-gallery").strip("_") or "hota-gallery"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Disposition", f'attachment; filename="{device}-backup-{stamp}.zip"')
+            self.end_headers()
+            self.wfile.write(body)
         elif self.path == "/api/artnet/status":
             self._send_json(200, self.store.artnet_status())
         elif self.path == "/api/artnet/discover":

@@ -83,13 +83,37 @@ def active_entry(
 ) -> Optional[Dict[str, Any]]:
     """The entry that should be showing right now for this target (None =
     the whole-layout default, otherwise a zone name) - last match in list
-    order wins, scoped to just that target's own entries."""
+    order wins, scoped to just that target's own entries. A `priority`
+    match beats a non-priority one outright, no matter where either sits
+    in the list - that's the whole point of priority: overriding the
+    standing schedule for a one-off request without having to go and
+    reorder it. Last-match-wins is still the tie-breaker within each of
+    the two tiers."""
     now = now or datetime.datetime.now()
     match = None
+    priority_match = None
     for entry in schedule:
-        if entry.get("zone") == target and _entry_matches(entry, now):
+        if entry.get("zone") != target or not _entry_matches(entry, now):
+            continue
+        if entry.get("priority"):
+            priority_match = entry
+        else:
             match = entry
-    return match
+    return priority_match if priority_match is not None else match
+
+
+def _priority_expired(entry: Dict[str, Any], now: datetime.datetime) -> bool:
+    """A priority entry is a one-off override, not a standing part of the
+    schedule - once it's done its job it shouldn't clutter the list.
+    "Done" means its own `enabled` switch got turned off, or (if it has
+    an end_date) that date has passed. Checked directly against the
+    calendar rather than by watching for a match -> no-match transition,
+    since a date-less priority entry that runs every day would otherwise
+    look "finished" at the end of its very first day."""
+    if entry.get("enabled") is False:
+        return True
+    end_date = entry.get("end_date")
+    return bool(end_date and now.strftime("%m-%d") > end_date)
 
 
 class Scheduler:
@@ -98,12 +122,14 @@ class Scheduler:
         get_config: Callable[[], Dict[str, Any]],
         set_default_look: Callable[[Dict[str, Any]], Any],
         set_fixture_looks: Callable[[List[str], Optional[Dict[str, Any]]], Any],
+        set_schedule: Callable[[List[Dict[str, Any]]], Any],
         check_period: float = 15.0,
         dark_revert_s: float = DARK_REVERT_S,
     ):
         self._get_config = get_config
         self._set_default_look = set_default_look
         self._set_fixture_looks = set_fixture_looks
+        self._set_schedule = set_schedule
         self._check_period = check_period
         self._dark_revert_s = dark_revert_s
         self._stop = threading.Event()
@@ -140,9 +166,19 @@ class Scheduler:
         self._last_applied[target] = entry["name"]
         self._dark_since[target] = None
 
+    def _delete_expired_priority_entries(self, cfg: Dict[str, Any], now: datetime.datetime) -> None:
+        expired = [e["name"] for e in cfg.get("schedule", []) if e.get("priority") and _priority_expired(e, now)]
+        if not expired:
+            return
+        log.info("schedule: priority entr%s finished, removing: %s",
+                  "y" if len(expired) == 1 else "ies", ", ".join(expired))
+        self._set_schedule([e for e in cfg["schedule"] if e["name"] not in expired])
+
     def _tick(self) -> None:
         cfg = self._get_config()
         now = datetime.datetime.now()
+        self._delete_expired_priority_entries(cfg, now)
+        cfg = self._get_config()  # re-fetch: may have just changed above
         targets = {entry.get("zone") for entry in cfg.get("schedule", [])}
         for target in targets:
             entry = active_entry(cfg["schedule"], target, now)

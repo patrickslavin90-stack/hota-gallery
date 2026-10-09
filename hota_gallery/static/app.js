@@ -1320,6 +1320,17 @@
     return true;
   }
   const targetName = z => (z == null ? "Whole building" : `Zone: ${z}`);
+  // Mirrors scheduler.py's active_entry: a priority match beats a
+  // non-priority one outright regardless of list order, so the "running
+  // now" indicators here agree with what the controller is actually doing.
+  function activeEntryFor(list, target, now) {
+    let match = null, priorityMatch = null;
+    for (const e of list) {
+      if ((e.zone ?? null) !== target || !entryActive(e, now)) continue;
+      if (e.priority) priorityMatch = e; else match = e;
+    }
+    return priorityMatch ?? match;
+  }
 
   function setSchedDirty(d) {
     sched.dirty = d;
@@ -1333,8 +1344,7 @@
     const now = new Date();
     const targets = [null, ...zoneNames];
     $("#nowStrip").replaceChildren(...targets.map(t => {
-      let active = null;
-      for (const e of sched.draft) if ((e.zone ?? null) === t && entryActive(e, now)) active = e;
+      const active = activeEntryFor(sched.draft, t, now);
       return h("div", null, h("span", { text: `${targetName(t)}, now` }), h("b", { text: active ? active.name : "Nothing scheduled" }));
     }));
   }
@@ -1343,7 +1353,10 @@
     const tbl = $("#schedTable"), list = sched.draft, now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const winners = new Map();
-    list.forEach((e, i) => { if (entryActive(e, now)) winners.set(e.zone ?? null, i); });
+    for (const target of new Set(list.map(e => e.zone ?? null))) {
+      const active = activeEntryFor(list, target, now);
+      if (active) winners.set(target, list.indexOf(active));
+    }
     if (!list.length) {
       tbl.replaceChildren(h("tbody", null, h("tr", null, h("td", { class: "empty", colspan: 7 }, "No entries yet. Add one to switch looks on automatically."))));
       return;
@@ -1357,7 +1370,10 @@
         const s = toMin(e.start_time), en = toMin(e.end_time);
         return h("tr", { class: (on ? "" : "off") + (winners.get(e.zone ?? null) === i ? " active-now" : "") },
           h("td", null, cb),
-          h("td", null, h("b", { style: "font-weight:500", text: e.name }), winners.get(e.zone ?? null) === i ? h("div", { class: "hint", style: "margin:0;color:var(--accent-2)", text: "Running now" }) : null),
+          h("td", null,
+            h("b", { style: "font-weight:500", text: e.name }),
+            e.priority ? h("span", { class: "badge", title: "Overrides other entries for this target, and deletes itself once it's done", text: "Priority" }) : null,
+            winners.get(e.zone ?? null) === i ? h("div", { class: "hint", style: "margin:0;color:var(--accent-2)", text: "Running now" }) : null),
           h("td", { text: targetName(e.zone ?? null) }),
           h("td", null, h("span", { class: "days" }, DAYS.map(d => h("i", { class: e.active_days.includes(d) ? "on" : "", title: DAY_LABEL[d], text: DAY_LABEL[d][0] })))),
           h("td", null, `${e.start_time} to ${e.end_time}`,
@@ -1393,12 +1409,13 @@
   function editEntry(index) {
     const isNew = index < 0;
     const e = isNew
-      ? { name: "", zone: null, enabled: true, active_days: [...DAYS], start_time: "16:30", end_time: "23:59", start_date: null, end_date: null, look: clone(cfg.current_look.default || HotaEngine.OFF) }
+      ? { name: "", zone: null, enabled: true, priority: false, active_days: [...DAYS], start_time: "16:30", end_time: "23:59", start_date: null, end_date: null, look: clone(cfg.current_look.default || HotaEngine.OFF) }
       : clone(sched.draft[index]);
     e.zone = e.zone ?? null;
     const err = h("p", { class: "err-text", hidden: true });
     const name = h("input", { type: "text", id: "eName", value: e.name, placeholder: "e.g. Evening amber" });
     const enabled = h("input", { type: "checkbox", id: "eOn", checked: e.enabled !== false });
+    const priority = h("input", { type: "checkbox", id: "ePriority", checked: !!e.priority });
     const zone = h("select", { id: "eZone" }, h("option", { value: "", text: "Whole building" }), zoneNames.map(z => h("option", { value: z, text: `Zone: ${z}`, selected: e.zone === z })));
     const days = h("div", { class: "dayset" });
     const renderDays = () => days.replaceChildren(...DAYS.map(d => h("button", { type: "button", "aria-pressed": e.active_days.includes(d), text: DAY_LABEL[d], onclick: () => {
@@ -1431,6 +1448,7 @@
     function apply() {
       e.name = name.value.trim();
       e.enabled = enabled.checked;
+      e.priority = priority.checked;
       e.zone = zone.value || null;
       e.start_time = start.value; e.end_time = end.value;
       e.start_date = sm.value && sd.value ? `${sm.value}-${sd.value}` : null;
@@ -1456,6 +1474,8 @@
         err,
         h("div", { class: "field" }, h("label", { for: "eName", text: "Name" }), name),
         h("div", { class: "field" }, h("label", { for: "eOn", text: "Enabled" }), h("div", { class: "row" }, enabled)),
+        h("div", { class: "field" }, h("label", { for: "ePriority", text: "Priority" }), h("div", { class: "row" }, priority)),
+        h("p", { class: "hint", text: "For a one-off request, without touching the standing schedule. A priority entry overrides any other entry for the same target whenever it matches, no matter where it sits in this list. It deletes itself once it's done: when its end date has passed, or as soon as you switch Enabled off." }),
         h("div", { class: "field" }, h("label", { for: "eZone", text: "Applies to" }), zone),
         h("div", { class: "field", style: "align-items:start" }, h("span", { class: "lbl", style: "padding-top:5px", text: "Days" }), h("div", null, days, quick)),
         h("div", { class: "field" }, h("label", { for: "eStart", text: "From" }), h("div", { class: "row" }, start, h("span", { class: "hint", style: "margin:0", text: "to" }), end)),
@@ -1885,7 +1905,13 @@
           api.kind === "local" ? h("button", { type: "button", class: "btn danger", text: "Reset demo", onclick: async () => {
             if (!(await ask({ title: "Reset the demo?", message: "Your demo changes in this browser are thrown away and the original configuration comes back.", ok: "Reset demo", danger: true }))) return;
             cfg = api.reset(); indexConfig(); sched.draft = null; afterConfigReplaced(); openSettings(); toast("Demo reset.");
-          } }) : null)),
+          } }) : null),
+        api.kind === "controller"
+          ? [
+            h("p", { class: "hint", text: "\"Download config.json\" above is this page's own copy - handy for a quick rollback. For an actual backup, use this instead: it's read straight from the controller's disk and bundled into one zip with any layout background images, so a Pi SD card failure doesn't take the whole venue setup with it." }),
+            h("a", { class: "btn primary", href: "api/backup", download: true, text: "Download full backup (.zip)" }),
+          ]
+          : h("p", { class: "hint", text: "A full backup needs the real controller - not available in the demo." })),
     );
   }
   function renderFixtures() {

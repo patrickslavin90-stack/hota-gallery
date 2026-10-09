@@ -324,6 +324,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .timebar b { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 2px; }
 .timebar i { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); }
 .swatch { display: block; width: 90px; height: 14px; border-radius: 4px; background: #000; }
+.badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: var(--pill); background: var(--accent); color: #fff; font-size: 11px; font-weight: 500; vertical-align: 1px; }
 .empty { padding: 28px; text-align: center; color: var(--muted); }
 
 .drawer {
