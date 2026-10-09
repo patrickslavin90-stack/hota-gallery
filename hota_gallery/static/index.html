@@ -35,6 +35,7 @@
       <div class="stage">
         <div class="canvas-wrap" id="canvasWrap">
           <canvas id="canvas" tabindex="0" aria-label="Façade elevations with live fixture colours. Click or drag to select fixtures."></canvas>
+          <div class="view3d" id="view3d" hidden></div>
           <div class="toolbar">
             <select id="layoutSelect" aria-label="Layout"></select>
             <div class="seg" id="viewSeg" role="group" aria-label="Zoom to elevation"></div>
@@ -43,6 +44,8 @@
               <button type="button" id="zoomFit">Fit</button>
               <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
             </div>
+            <button type="button" class="btn" id="toggle3d" aria-pressed="false" hidden title="Rotate around a rough 3D model of the gallery">3D</button>
+            <div class="seg" id="view3dSeg" role="group" aria-label="Camera" hidden></div>
             <span class="spacer"></span>
             <button type="button" class="btn" id="clearProgram" title="Drop every manual look and show whatever the schedule says should be playing right now. Click again to confirm.">Clear</button>
             <button type="button" class="btn" id="exportGif" title="Save the current live look as a looping GIF for clients or approval">Export GIF</button>
@@ -151,6 +154,7 @@
      a plain global, not an ES module export. -->
 <script src="static/vendor/qrcode.js"></script>
 <script src="static/export.js"></script>
+<script src="static/view3d.js"></script>
 <script src="static/app.js"></script>
 </body>
 </html>
