@@ -1495,8 +1495,12 @@
 
   // "Scan to connect": a QR code for the address this page is live on right
   // now (location.origin - correct whichever interface you reached it by,
-  // wired or Wi-Fi, no hardcoded IP to go stale). Demo mode has no controller
-  // to hand a phone, so the card just explains that instead.
+  // wired or Wi-Fi, no hardcoded IP to go stale) - EXCEPT on the kiosk
+  // itself, which loads via http://localhost:8080/ so its origin means
+  // nothing to a phone's camera. shareableUrl() below detects that one
+  // case and substitutes the controller's real network address instead.
+  // Demo mode has no controller to hand a phone, so the card just
+  // explains that instead.
   function renderRemote() {
     $("#remoteCard").replaceChildren(
       h("header", null, h("h3", { text: "Remote access" })),
@@ -1534,8 +1538,23 @@
     return svg;
   }
 
-  function openRemoteAccessDialog() {
-    const url = location.origin + "/";
+  // location.origin is right for anyone who actually typed/scanned their
+  // way to a network address - but the kiosk display loads this page via
+  // http://localhost:8080/ (deliberately, so it never breaks if the Pi's
+  // IP changes), and "localhost" in a QR code just points a phone's camera
+  // at the phone itself. Ask the controller for its real address instead
+  // whenever we're being viewed through localhost.
+  async function shareableUrl() {
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return location.origin + "/";
+    try {
+      const status = await api.artnetStatus();
+      if (status && status.effective_bind_ip) return `http://${status.effective_bind_ip}:${status.web_port}/`;
+    } catch { /* fall through */ }
+    return location.origin + "/"; // best effort - still beats throwing
+  }
+
+  async function openRemoteAccessDialog() {
+    const url = await shareableUrl();
     const copyBtn = h("button", { type: "button", class: "btn", text: "Copy link", onclick: async () => {
       const ok = await copyText(url);
       copyBtn.textContent = ok ? "Copied" : url;
