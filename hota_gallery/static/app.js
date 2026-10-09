@@ -1818,53 +1818,61 @@
       try { st = await api.artnetStatus(); } catch (e) { slideAlert(alertSlot, "Couldn't read the Art-Net status", errText(e), 0); }
     }
     const universes = (st && st.universes) || patchUniverses();
+    const byUniverse = new Map(universes.map(u => [u.universe, u]));
 
-    // Which node (if any) answered for each universe the patch uses.
-    const answering = new Map();
-    if (artnetScan) for (const n of artnetScan.nodes) for (const u of n.universes_out || []) {
-      if (!answering.has(u)) answering.set(u, []);
-      answering.get(u).push(n);
-    }
-    const status = u => {
-      if (!artnetScan) return h("span", { class: "ustat unknown" }, h("i"), api.kind === "controller" ? "Not checked" : "Needs the controller");
-      const ns = answering.get(u.universe);
-      return ns ? h("span", { class: "ustat ok", title: ns.map(n => `${n.short_name || n.ip} (${n.ip})`).join(", ") }, h("i"), ns.map(n => n.short_name || n.ip).join(", "))
-        : h("span", { class: "ustat bad" }, h("i"), "No node found");
-    };
     if (artnetScan) {
-      const ok = universes.filter(u => answering.has(u.universe)).length;
-      summary.className = "conn-summary " + (ok === universes.length ? "ok" : ok ? "part" : "bad");
-      summary.textContent = `${ok} of ${universes.length} universes answering`;
+      const answeredUnis = new Set(artnetScan.nodes.flatMap(n => n.universes_out || []));
+      const ok = universes.filter(u => answeredUnis.has(u.universe)).length;
+      summary.className = "conn-summary " + (!artnetScan.nodes.length ? "bad" : ok === universes.length ? "ok" : ok ? "part" : "bad");
+      summary.textContent = artnetScan.nodes.length
+        ? `${artnetScan.nodes.length} node${artnetScan.nodes.length === 1 ? "" : "s"} found, ${ok} of ${universes.length} patched universes covered`
+        : "No nodes replied";
     }
 
-    const nodeCards = artnetScan && artnetScan.nodes.length
-      ? h("div", { class: "nodes" }, artnetScan.nodes.map(n => {
-        const used = (n.universes_out || []).filter(u => universes.some(x => x.universe === u));
-        return h("div", { class: "node" },
-          h("div", { class: "node-head" }, h("span", { class: "ustat ok" }, h("i")), h("b", { text: n.short_name || n.ip })),
-          n.long_name ? h("div", { class: "hint", style: "margin:2px 0 8px", text: n.long_name }) : null,
-          h("dl", { class: "kv", style: "grid-template-columns:96px 1fr" },
-            h("dt", { text: "IP" }), h("dd", { text: n.ip }),
-            h("dt", { text: "MAC" }), h("dd", { text: n.mac || "–" }),
-            h("dt", { text: "Outputs" }), h("dd", { text: (n.universes_out || []).map(u => u + 1).join(", ") || "–" }),
-            h("dt", { text: "Used by patch" }), h("dd", { class: used.length ? "" : "warn-text", text: used.length ? used.map(u => u + 1).join(", ") : "None of its universes" })));
-      }))
-      : null;
+    // The real, physical things on the network are the Art-Net nodes
+    // (e.g. the two Titan gateways) - lead with those, one card per node,
+    // and show each of its *ports* as a row: what universe that port is
+    // configured to output, and (cross-referenced against the patch)
+    // whether anything is actually assigned to it. A universe number on
+    // its own doesn't say which box on the wall it comes out of; this does.
+    const deviceCards = artnetScan && artnetScan.nodes.length
+      ? artnetScan.nodes.map(n => h("div", { class: "node" },
+          h("div", { class: "node-head" },
+            h("span", { class: "ustat ok" }, h("i")), h("b", { text: n.short_name || n.ip }),
+            h("span", { class: "hint", style: "margin:0 0 0 auto", text: [n.ip, n.mac].filter(Boolean).join(" · ") })),
+          n.long_name && n.long_name !== n.short_name ? h("div", { class: "hint", style: "margin:2px 0 8px", text: n.long_name }) : null,
+          h("div", { class: "tbl-wrap", style: "margin-top:8px" }, h("table", { class: "tbl" },
+            h("thead", null, h("tr", null, ["Port", "Universe", "Fixtures", "Channels", "Highest address"].map((t, i) => h("th", { text: t, class: i > 1 ? "num" : "" })))),
+            (n.universes_out || []).length
+              ? h("tbody", null, n.universes_out.map((u, i) => {
+                const patched = byUniverse.get(u);
+                return h("tr", null,
+                  h("td", { text: i + 1 }),
+                  h("td", null, h("span", { class: "ustat " + (patched ? "ok" : "unknown") }, h("i")), String(u + 1)),
+                  h("td", { class: "num", text: patched ? patched.fixture_count : "–" }),
+                  h("td", { class: "num", text: patched ? patched.channel_count : "–" }),
+                  h("td", { class: "num" + (patched && patched.max_address > 512 ? " err-text" : ""), text: patched ? (patched.max_address > 512 ? `${patched.max_address} (over 512)` : patched.max_address) : "Not used by the patch" }));
+              }))
+              : h("tbody", null, h("tr", null, h("td", { class: "empty", colspan: 5, text: "This node didn't report any output ports." })))))))
+      : [];
+
+    const coveredUnis = new Set(artnetScan ? artnetScan.nodes.flatMap(n => n.universes_out || []) : []);
+    const orphanUnis = artnetScan ? universes.filter(u => !coveredUnis.has(u.universe)) : [];
 
     body.replaceChildren(
       st ? h("dl", { class: "kv" },
         h("dt", { text: "Sending from" }), h("dd", { text: `${st.effective_bind_ip} ${st.configured_bind_ip ? "(set)" : "(automatic)"}` }),
         h("dt", { text: "Broadcast to" }), h("dd", { text: `${st.broadcast_address}:${st.artnet_port}` }),
         h("dt", { text: "Rate" }), h("dd", { text: `${st.fps} fps` }))
-        : h("p", { class: "hint", style: "margin:0", text: "The demo doesn't send any lighting data. On the controller, this shows where Art-Net goes out and which nodes are answering." }),
-      h("div", { class: "tbl-wrap", style: "margin-top:14px" }, h("table", { class: "tbl" },
-        h("thead", null, h("tr", null, ["Universe", "Node", "Fixtures", "Channels", "Highest address"].map((t, i) => h("th", { text: t, class: i > 1 ? "num" : "" })))),
-        h("tbody", null, universes.map(u => h("tr", null,
-          h("td", { text: u.universe + 1 }), h("td", null, status(u)),
-          h("td", { class: "num", text: u.fixture_count }), h("td", { class: "num", text: u.channel_count }),
-          h("td", { class: "num" + (u.max_address > 512 ? " err-text" : ""), text: u.max_address > 512 ? `${u.max_address} (over 512)` : u.max_address })))))),
-      ...[artnetScan ? h("p", { class: "hint", text: `Last scanned at ${artnetScan.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Universes are numbered from 1, like ELM.` }) : null,
-        nodeCards].filter(Boolean),
+        : h("p", { class: "hint", style: "margin:0", text: "The demo doesn't send any lighting data. On the controller, this shows which Art-Net nodes answered and what each one's ports are outputting." }),
+      !artnetScan
+        ? h("p", { class: "hint", style: "margin-top:14px", text: api.kind === "controller" ? 'Not scanned yet - click "Scan for nodes".' : "Needs the controller." })
+        : h("div", { class: "nodes", style: "margin-top:14px;grid-template-columns:1fr" }, deviceCards.length ? deviceCards : h("p", { class: "hint", text: "No nodes replied." })),
+      orphanUnis.length
+        ? h("p", { class: "hint warn-text", style: "margin-top:10px",
+            text: `Universe${orphanUnis.length > 1 ? "s" : ""} ${orphanUnis.map(u => u.universe + 1).join(", ")} ${orphanUnis.length > 1 ? "are" : "is"} used by the patch, but no node answered for ${orphanUnis.length > 1 ? "them" : "it"}.` })
+        : null,
+      artnetScan ? h("p", { class: "hint", text: `Last scanned at ${artnetScan.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Universes are numbered from 1, like ELM.` }) : null,
     );
 
     async function runScan() {
@@ -1942,6 +1950,39 @@
     fitView("all");
   }
   HotaExport.preload();
+  // Clear: drop every manual look (default + every per-fixture override)
+  // and show whatever the schedule itself says should be playing right
+  // now - undoes whatever staff were just testing without waiting on the
+  // scheduler's own next tick. Press-twice-to-confirm instead of a modal,
+  // since this is the kind of button someone reaches for in a hurry.
+  (() => {
+    const btn = $("#clearProgram");
+    const IDLE_TEXT = btn.textContent;
+    let armed = false, timer = null;
+    function disarm() {
+      armed = false;
+      clearTimeout(timer);
+      btn.textContent = IDLE_TEXT;
+      btn.classList.remove("danger-fill");
+    }
+    btn.addEventListener("click", async () => {
+      if (!armed) {
+        armed = true;
+        btn.textContent = "Click again to clear";
+        btn.classList.add("danger-fill");
+        timer = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
+      lastLookEdit = Date.now();
+      try {
+        cfg.current_look = await api.clear();
+        updateTarget(); loadEditorFromTarget();
+        toast("Cleared. Showing what the schedule says should be playing now.");
+      } catch (e) { toast(errText(e), true); }
+    });
+  })();
+
   // Export GIF: the default look's matching preset (if any) names the concept.
   const describeLook = cl => {
     const own = Object.keys(cl.fixtures || {}).length;

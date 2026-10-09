@@ -12,6 +12,7 @@ not a different architecture.
 
 from __future__ import annotations
 
+import copy
 import datetime
 import io
 import json
@@ -27,8 +28,9 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from .artnet import ARTNET_PORT, discover_nodes
-from .config import ConfigError, save_config, validate_config
+from .config import ConfigError, off_look, save_config, validate_config
 from .engine import Engine
+from .scheduler import active_entry
 
 log = logging.getLogger("hota_gallery")
 
@@ -310,6 +312,40 @@ class Store:
             return None
         return path
 
+    def clear_to_schedule(self) -> Dict[str, Any]:
+        """The Live tab's "Clear" button: drop every manual override -
+        the default look and every per-fixture selection look - and show
+        whatever the schedule itself says should be playing right now,
+        immediately. Same end state the background Scheduler would
+        eventually converge to on its own, but staff don't have to wait
+        for its next tick (or its 60s dark-revert safety net, which only
+        ever fires when an override leaves something dark - this covers
+        the general "undo whatever I was just testing" case instead).
+        Reuses scheduler.active_entry so this always agrees with what the
+        real scheduler would pick (priority entries included), rather
+        than a second copy of that logic drifting out of sync over time."""
+        with self._lock:
+            cfg = dict(self.engine.cfg)
+            now = datetime.datetime.now()
+            schedule = cfg.get("schedule", [])
+            default_entry = active_entry(schedule, None, now)
+            default_look = copy.deepcopy(default_entry["look"]) if default_entry else off_look()
+
+            overrides: Dict[str, Any] = {}
+            for zone in {e.get("zone") for e in schedule if e.get("zone")}:
+                entry = active_entry(schedule, zone, now)
+                if not entry:
+                    continue
+                for fx in cfg["fixtures"]:
+                    if fx.get("zone") == zone:
+                        overrides[f"{fx['universe']}:{fx['address']}"] = copy.deepcopy(entry["look"])
+
+            cfg["current_look"] = {"default": default_look, "fixtures": overrides}
+            validated = validate_config(cfg)
+            save_config(self.config_path, validated)
+            self.engine.set_look(validated["current_look"])
+            return validated["current_look"]
+
     def create_backup(self) -> bytes:
         """Everything that's irreplaceable about *this venue's* setup, in
         one zip - config.json (fixtures, zones, schedule, presets, current
@@ -476,6 +512,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, validated)
             elif self.path == "/api/look":
                 look = self.store.set_default_look(body)
+                self._send_json(200, look)
+            elif self.path == "/api/clear":
+                look = self.store.clear_to_schedule()
                 self._send_json(200, look)
             elif self.path == "/api/look/selection":
                 look = self.store.set_fixture_looks(body["fixtures"], body.get("look"))
