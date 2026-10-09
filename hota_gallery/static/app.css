@@ -416,6 +416,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .dlg-input { width: 100%; height: 38px !important; margin-top: 16px; padding: 0 16px !important; border-radius: var(--pill) !important; font-size: 14px; }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 .dlg-actions .btn { height: 34px; padding: 0 18px; }
+.qr-url { margin-top: 14px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); font-size: 13px; text-align: center; word-break: break-all; }
 @keyframes dlg-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 @keyframes dlg-out { to { opacity: 0; transform: translateY(4px) scale(.98); } }
 @keyframes dlg-fade { from { opacity: 0; } }

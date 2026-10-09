@@ -1490,7 +1490,71 @@
     $("#settingsSub").textContent = api.kind === "controller"
       ? "Device and network settings for the lighting controller."
       : "You're in the demo. Settings are saved in this browser, and network details need the real controller.";
-    renderDevice(); renderArtnet(); renderConfigCard(); renderFixtures();
+    renderDevice(); renderRemote(); renderArtnet(); renderConfigCard(); renderFixtures();
+  }
+
+  // "Scan to connect": a QR code for the address this page is live on right
+  // now (location.origin - correct whichever interface you reached it by,
+  // wired or Wi-Fi, no hardcoded IP to go stale). Demo mode has no controller
+  // to hand a phone, so the card just explains that instead.
+  function renderRemote() {
+    $("#remoteCard").replaceChildren(
+      h("header", null, h("h3", { text: "Remote access" })),
+      h("div", { class: "body" },
+        api.kind === "controller"
+          ? [
+            h("p", { class: "hint", style: "margin-top:0", text: "Scan this from a phone on the gallery Wi-Fi to open the live control - handy for checking the facade from outside." }),
+            h("button", { type: "button", class: "btn primary", text: "Scan to connect", onclick: openRemoteAccessDialog }),
+          ]
+          : h("p", { class: "hint", style: "margin-top:0", text: "Scanning to connect needs the real controller - not available in the demo." })));
+  }
+
+  function buildQrSvg(text, cellPx) {
+    const qr = qrcode(0, "M"); // typeNumber 0 = smallest version that fits
+    qr.addData(text);
+    qr.make();
+    // Scanners need a blank "quiet zone" around the code to lock on - the
+    // spec calls for >=4 modules; without it the white fill butting right
+    // up against the dialog's dark background looked fine but didn't
+    // actually decode (confirmed with a real decoder before this fix).
+    const QUIET = 4;
+    const n = qr.getModuleCount(), size = (n + QUIET * 2) * cellPx, ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+    svg.setAttribute("width", size); svg.setAttribute("height", size);
+    svg.style.cssText = "display:block;background:#fff;border-radius:8px";
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+      if (!qr.isDark(r, c)) continue;
+      const rect = document.createElementNS(ns, "rect");
+      rect.setAttribute("x", (c + QUIET) * cellPx); rect.setAttribute("y", (r + QUIET) * cellPx);
+      rect.setAttribute("width", cellPx); rect.setAttribute("height", cellPx);
+      rect.setAttribute("fill", "#0f0e0e");
+      svg.append(rect);
+    }
+    return svg;
+  }
+
+  function openRemoteAccessDialog() {
+    const url = location.origin + "/";
+    const copyBtn = h("button", { type: "button", class: "btn", text: "Copy link", onclick: async () => {
+      const ok = await copyText(url);
+      copyBtn.textContent = ok ? "Copied" : url;
+      if (ok) setTimeout(() => { copyBtn.textContent = "Copy link"; }, 1800);
+    } });
+    const form = h("form", { method: "dialog", class: "dlg-body" },
+      h("h3", { class: "dlg-title", id: "dlgTitle", text: "Scan to connect" }),
+      h("p", { class: "dlg-msg", text: "Open your phone's camera and point it at this code to load the remote control." }),
+      h("div", { style: "display:flex;justify-content:center;margin:4px 0" }, buildQrSvg(url, 4)),
+      h("div", { class: "qr-url", text: url }),
+      h("p", { class: "hint", style: "text-align:center;margin:0 0 4px" , text: "Works on the gallery Wi-Fi only" }),
+      h("div", { class: "dlg-actions" }, copyBtn, h("button", { type: "submit", class: "btn primary", text: "Done" })));
+    const dlg = h("dialog", { class: "dlg", "aria-labelledby": "dlgTitle" }, form);
+    const close = () => { dlg.close(); dlg.remove(); };
+    form.addEventListener("submit", e => { e.preventDefault(); close(); });
+    dlg.addEventListener("cancel", e => { e.preventDefault(); close(); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) close(); });
+    document.body.append(dlg);
+    dlg.showModal();
   }
   // The port this page was actually served on - what the controller is
   // listening on right now (web_port is only read when it starts).
