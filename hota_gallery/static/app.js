@@ -296,6 +296,53 @@
   indexConfig();
 
   // ===================================================================
+  // remote PIN gate - see renderRemote() in Settings for where this is
+  // set. A client-side speed bump only, same philosophy as the house-
+  // lights bridge's admin PIN: nothing server-side enforces it, so it
+  // only ever blocks the UI, never the API. Skipped entirely on this
+  // kiosk's own screen (isLocalHost) - you're already standing at the
+  // building. Anyone else is asked once per browser, then it's
+  // remembered in localStorage so the same phone isn't asked again.
+  // ===================================================================
+  const PIN_OK_KEY = "hotaRemotePinOk";
+  async function requireRemotePin() {
+    if (isLocalHost || !cfg.remote_pin) return;
+    let stored = null;
+    try { stored = localStorage.getItem(PIN_OK_KEY); } catch { /* private browsing - just ask every time */ }
+    if (stored === cfg.remote_pin) return;
+    await new Promise(resolve => {
+      const field = h("input", { type: "tel", inputmode: "numeric", class: "dlg-input", placeholder: "PIN", autocomplete: "off" });
+      const errSlot = h("div", { class: "alert-slot" });
+      const form = h("form", { method: "dialog", class: "dlg-body" },
+        h("h3", { class: "dlg-title", id: "dlgTitle", text: "Enter PIN" }),
+        h("p", { class: "dlg-msg", text: "Ask gallery staff for the access PIN to control the lights remotely." }),
+        field, errSlot,
+        h("div", { class: "dlg-actions" }, h("button", { type: "submit", class: "btn primary", text: "Unlock" })));
+      const dlg = h("dialog", { class: "dlg", "aria-labelledby": "dlgTitle" }, form);
+      form.addEventListener("submit", e => {
+        e.preventDefault();
+        const val = field.value.trim();
+        if (val === cfg.remote_pin) {
+          try { localStorage.setItem(PIN_OK_KEY, val); } catch { /* private browsing - just re-ask next time */ }
+          dlg.close(); dlg.remove();
+          resolve();
+        } else {
+          slideAlert(errSlot, "Wrong PIN", "Try again.");
+          field.value = "";
+          field.focus();
+        }
+      });
+      // Deliberately no cancel/backdrop-close - unlike every other dialog
+      // in this app, there's nothing behind this one to fall back to.
+      dlg.addEventListener("cancel", e => e.preventDefault());
+      document.body.append(dlg);
+      dlg.showModal();
+      field.focus();
+    });
+  }
+  await requireRemotePin();
+
+  // ===================================================================
   // clock + tabs
   // ===================================================================
   const clockEl = $("#clock");
@@ -546,6 +593,22 @@
     marquee: null,
     preview: null,
   };
+  // -- blind mode -----------------------------------------------------------
+  // Program and preview a look without ever touching the real engine - the
+  // lighting-console idea of "blind" vs "live". Driven by the same
+  // client-side engine the demo backend uses for its own preview (engine.js),
+  // fed a look that only ever lives in this tab; while blind is on,
+  // sendLook/selection-revert/Clear all write into `blind` instead of
+  // calling putLook/putSelection, and the 2D canvas + 3D view (both already
+  // just read live.preview) get their frames from this local engine instead
+  // of the controller. Nothing here touches the real fixtures until "Go
+  // live" sends the whole sandbox look across in one call.
+  const blindEngine = HotaEngine.createEngine(cfg);
+  let blindOn = false;
+  let blind = { default: clone(HotaEngine.OFF), fixtures: {} };
+  let blindT0 = performance.now();
+  const activeLook = () => (blindOn ? blind : cfg.current_look);
+
   const isBuilding = () => live.layoutName === "Building" && elev;
   const currentLayout = () => allLayouts().find(l => l.name === live.layoutName) || null;
   const layoutFixtures = () => {
@@ -799,11 +862,12 @@
   // row mark the controller as lost (red header, polling slows to every 2 s
   // so the console doesn't flood); the first success reconnects.
   let previewBusy = false, failStreak = 0, pollCount = 0, lastLookEdit = 0;
+  let realPreview = null; // last preview actually fetched from the controller/demo engine
   async function pollPreview() {
     if (previewBusy) return;
     previewBusy = true;
     try {
-      live.preview = await api.getPreview();
+      realPreview = await api.getPreview();
       failStreak = 0;
       if (offline) await goOnline();
     } catch {
@@ -842,6 +906,11 @@
   function frame() {
     if (!tabs.live.hidden) {
       if (api.kind === "local") pollPreview();
+      // Both the 2D canvas (draw, below) and the 3D view (view3d.js's own
+      // getPreview callback) just read live.preview - swapping its source
+      // here is the whole of what makes blind mode show up everywhere the
+      // real preview normally would, with no further plumbing needed.
+      live.preview = blindOn ? blindEngine.preview((performance.now() - blindT0) / 1000) : realPreview;
       if (!view3dOn) draw();
     }
     requestAnimationFrame(frame);
@@ -976,7 +1045,16 @@
     $("#view3dSeg").hidden = !on;
     $("#viewSeg").hidden = on || !isBuilding();
     document.querySelector('.seg[aria-label="Zoom"]').hidden = on;
-    $("#readout").textContent = on ? "Drag to orbit, right-drag to pan, scroll to zoom. Selecting fixtures works in the 2D view." : "";
+    $("#readout").textContent = on ? "Drag to orbit, right-drag to pan, scroll to zoom. This is a visualiser - switch back to the 2D view to change the lighting." : "";
+    // 3D is a visualiser, not an editor - no selecting, no look controls,
+    // no presets, no "Clear" (which changes the live look). Hiding the
+    // panel also frees its width for the model instead of leaving a gap.
+    $("#panel").hidden = on;
+    document.querySelector(".presets").hidden = on;
+    $("#clearProgram").hidden = on;
+    $("#toggleBlind").hidden = on;
+    $("#blindGoLive").hidden = on || !blindOn;
+    document.querySelector(".live").classList.toggle("full-width", on);
     if (view3d) view3d.setActive(on);
   }
   $("#toggle3d").addEventListener("click", () => setView3d(!view3dOn));
@@ -1165,6 +1243,13 @@
   }
   $("#selClear").addEventListener("click", () => { live.selection.clear(); selectionChanged(); });
   $("#selRevert").addEventListener("click", async () => {
+    if (blindOn) {
+      for (const k of live.selection) delete blind.fixtures[k];
+      blindEngine.setCurrentLook(blind);
+      toast("Selection reverted to the default look (blind - the real fixtures are untouched).");
+      updateTarget(); loadEditorFromTarget();
+      return;
+    }
     try {
       cfg.current_look = await api.putSelection([...live.selection], null);
       toast("Selection reverted to the default look.");
@@ -1176,7 +1261,7 @@
     const n = live.selection.size;
     $("#selCount").textContent = n ? `${n} selected` : "";
     updateSelChips();
-    $("#selRevert").hidden = !n || ![...live.selection].some(k => cfg.current_look.fixtures[k]);
+    $("#selRevert").hidden = !n || ![...live.selection].some(k => activeLook().fixtures[k]);
     updateTarget();
     loadEditorFromTarget();
   }
@@ -1186,7 +1271,7 @@
   function updateTarget() {
     const n = live.selection.size;
     const t = $("#target");
-    const own = Object.keys(cfg.current_look.fixtures || {}).filter(k => fixtureIndex.has(k));
+    const own = Object.keys(activeLook().fixtures || {}).filter(k => fixtureIndex.has(k));
     const total = cfg.fixtures.length;
     t.classList.toggle("sel", n > 0);
     t.classList.toggle("warn", !n && own.length > 0);
@@ -1206,6 +1291,13 @@
       h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" },
         h("button", { type: "button", class: "btn sm", text: "Select them", onclick: () => selectKeys(own) }),
         h("button", { type: "button", class: "btn sm", text: "Revert all to default", onclick: async () => {
+          if (blindOn) {
+            for (const k of own) delete blind.fixtures[k];
+            blindEngine.setCurrentLook(blind);
+            toast("Every fixture now follows the default look (blind).");
+            updateTarget();
+            return;
+          }
           try { cfg.current_look = await api.putSelection(own, null); toast("Every fixture now follows the default look."); updateTarget(); }
           catch (e) { toast(errText(e), true); }
         } })),
@@ -1223,19 +1315,53 @@
   // anything that reads cfg.current_look right after a click (Export GIF,
   // the target box, presets) sees the look just picked, not the one before
   // the controller replied. The reply (or the 5 s status refresh) settles it.
+  // In blind mode there's no "save in the background" at all - the look
+  // only ever lands in `blind`, feeding the local preview engine, and the
+  // real controller is never called.
   function sendLook(look, keys) {
     lastLookEdit = Date.now();
-    if (keys.length) for (const k of keys) cfg.current_look.fixtures[k] = clone(look);
-    else cfg.current_look.default = clone(look);
+    const target = activeLook();
+    if (keys.length) for (const k of keys) target.fixtures[k] = clone(look);
+    else target.default = clone(look);
     updateTarget();
+    if (blindOn) { blindEngine.setCurrentLook(blind); return; }
     sendLookRemote(look, keys);
   }
   const liveEditor = LookEditor($("#liveLook"), look => sendLook(look, [...live.selection]));
   function targetLook() {
     const first = [...live.selection][0];
-    return (first && cfg.current_look.fixtures[first]) || cfg.current_look.default || HotaEngine.OFF;
+    const cl = activeLook();
+    return (first && cl.fixtures[first]) || cl.default || HotaEngine.OFF;
   }
   function loadEditorFromTarget() { liveEditor.set(targetLook()); }
+
+  function setBlind(on) {
+    if (on === blindOn) return;
+    if (on) {
+      blind = clone(cfg.current_look);
+      blindEngine.setConfig(cfg);
+      blindEngine.setCurrentLook(blind);
+      blindT0 = performance.now();
+    }
+    blindOn = on;
+    const btn = $("#toggleBlind");
+    btn.setAttribute("aria-pressed", String(on));
+    btn.textContent = on ? "Blind: on" : "Blind";
+    $("#blindBanner").hidden = !on;
+    $("#blindGoLive").hidden = !on;
+    $("#clearProgram").title = on
+      ? "Reset the blind sandbox to match what's actually live. Click again to confirm."
+      : "Drop every manual look and show whatever the schedule says should be playing right now. Click again to confirm.";
+    updateTarget(); loadEditorFromTarget(); renderPresets();
+  }
+  $("#toggleBlind").addEventListener("click", () => setBlind(!blindOn));
+  $("#blindGoLive").addEventListener("click", async () => {
+    if (!(await ask({ title: "Send this to the real lights?", message: "The facade switches to exactly what's shown here right now. You stay in blind mode afterwards - turn it off separately if you're done.", ok: "Go live" }))) return;
+    try {
+      cfg.current_look = await api.setCurrentLook(clone(blind));
+      toast("Sent to the real lights.");
+    } catch (e) { toast(errText(e), true); }
+  });
 
   // -- presets -------------------------------------------------------------------
   const presetName = (p, i) => p.name || `Preset ${i + 1}`;
@@ -1312,6 +1438,17 @@
     return true;
   }
   const targetName = z => (z == null ? "Whole building" : `Zone: ${z}`);
+  // Mirrors scheduler.py's active_entry: a priority match beats a
+  // non-priority one outright regardless of list order, so the "running
+  // now" indicators here agree with what the controller is actually doing.
+  function activeEntryFor(list, target, now) {
+    let match = null, priorityMatch = null;
+    for (const e of list) {
+      if ((e.zone ?? null) !== target || !entryActive(e, now)) continue;
+      if (e.priority) priorityMatch = e; else match = e;
+    }
+    return priorityMatch ?? match;
+  }
 
   function setSchedDirty(d) {
     sched.dirty = d;
@@ -1325,8 +1462,7 @@
     const now = new Date();
     const targets = [null, ...zoneNames];
     $("#nowStrip").replaceChildren(...targets.map(t => {
-      let active = null;
-      for (const e of sched.draft) if ((e.zone ?? null) === t && entryActive(e, now)) active = e;
+      const active = activeEntryFor(sched.draft, t, now);
       return h("div", null, h("span", { text: `${targetName(t)}, now` }), h("b", { text: active ? active.name : "Nothing scheduled" }));
     }));
   }
@@ -1335,7 +1471,10 @@
     const tbl = $("#schedTable"), list = sched.draft, now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const winners = new Map();
-    list.forEach((e, i) => { if (entryActive(e, now)) winners.set(e.zone ?? null, i); });
+    for (const target of new Set(list.map(e => e.zone ?? null))) {
+      const active = activeEntryFor(list, target, now);
+      if (active) winners.set(target, list.indexOf(active));
+    }
     if (!list.length) {
       tbl.replaceChildren(h("tbody", null, h("tr", null, h("td", { class: "empty", colspan: 7 }, "No entries yet. Add one to switch looks on automatically."))));
       return;
@@ -1349,7 +1488,10 @@
         const s = toMin(e.start_time), en = toMin(e.end_time);
         return h("tr", { class: (on ? "" : "off") + (winners.get(e.zone ?? null) === i ? " active-now" : "") },
           h("td", null, cb),
-          h("td", null, h("b", { style: "font-weight:500", text: e.name }), winners.get(e.zone ?? null) === i ? h("div", { class: "hint", style: "margin:0;color:var(--accent-2)", text: "Running now" }) : null),
+          h("td", null,
+            h("b", { style: "font-weight:500", text: e.name }),
+            e.priority ? h("span", { class: "badge", title: "Overrides other entries for this target, and deletes itself once it's done", text: "Priority" }) : null,
+            winners.get(e.zone ?? null) === i ? h("div", { class: "hint", style: "margin:0;color:var(--accent-2)", text: "Running now" }) : null),
           h("td", { text: targetName(e.zone ?? null) }),
           h("td", null, h("span", { class: "days" }, DAYS.map(d => h("i", { class: e.active_days.includes(d) ? "on" : "", title: DAY_LABEL[d], text: DAY_LABEL[d][0] })))),
           h("td", null, `${e.start_time} to ${e.end_time}`,
@@ -1385,12 +1527,13 @@
   function editEntry(index) {
     const isNew = index < 0;
     const e = isNew
-      ? { name: "", zone: null, enabled: true, active_days: [...DAYS], start_time: "16:30", end_time: "23:59", start_date: null, end_date: null, look: clone(cfg.current_look.default || HotaEngine.OFF) }
+      ? { name: "", zone: null, enabled: true, priority: false, active_days: [...DAYS], start_time: "16:30", end_time: "23:59", start_date: null, end_date: null, look: clone(cfg.current_look.default || HotaEngine.OFF) }
       : clone(sched.draft[index]);
     e.zone = e.zone ?? null;
     const err = h("p", { class: "err-text", hidden: true });
     const name = h("input", { type: "text", id: "eName", value: e.name, placeholder: "e.g. Evening amber" });
     const enabled = h("input", { type: "checkbox", id: "eOn", checked: e.enabled !== false });
+    const priority = h("input", { type: "checkbox", id: "ePriority", checked: !!e.priority });
     const zone = h("select", { id: "eZone" }, h("option", { value: "", text: "Whole building" }), zoneNames.map(z => h("option", { value: z, text: `Zone: ${z}`, selected: e.zone === z })));
     const days = h("div", { class: "dayset" });
     const renderDays = () => days.replaceChildren(...DAYS.map(d => h("button", { type: "button", "aria-pressed": e.active_days.includes(d), text: DAY_LABEL[d], onclick: () => {
@@ -1423,6 +1566,7 @@
     function apply() {
       e.name = name.value.trim();
       e.enabled = enabled.checked;
+      e.priority = priority.checked;
       e.zone = zone.value || null;
       e.start_time = start.value; e.end_time = end.value;
       e.start_date = sm.value && sd.value ? `${sm.value}-${sd.value}` : null;
@@ -1448,6 +1592,8 @@
         err,
         h("div", { class: "field" }, h("label", { for: "eName", text: "Name" }), name),
         h("div", { class: "field" }, h("label", { for: "eOn", text: "Enabled" }), h("div", { class: "row" }, enabled)),
+        h("div", { class: "field" }, h("label", { for: "ePriority", text: "Priority" }), h("div", { class: "row" }, priority)),
+        h("p", { class: "hint", text: "For a one-off request, without touching the standing schedule. A priority entry overrides any other entry for the same target whenever it matches, no matter where it sits in this list. It deletes itself once it's done: when its end date has passed, or as soon as you switch Enabled off." }),
         h("div", { class: "field" }, h("label", { for: "eZone", text: "Applies to" }), zone),
         h("div", { class: "field", style: "align-items:start" }, h("span", { class: "lbl", style: "padding-top:5px", text: "Days" }), h("div", null, days, quick)),
         h("div", { class: "field" }, h("label", { for: "eStart", text: "From" }), h("div", { class: "row" }, start, h("span", { class: "hint", style: "margin:0", text: "to" }), end)),
@@ -1529,7 +1675,110 @@
     $("#settingsSub").textContent = api.kind === "controller"
       ? "Device and network settings for the lighting controller."
       : "You're in the demo. Settings are saved in this browser, and network details need the real controller.";
-    renderDevice(); renderArtnet(); renderConfigCard(); renderFixtures();
+    renderDevice(); renderRemote(); renderArtnet(); renderConfigCard(); renderFixtures();
+  }
+
+  // "Scan to connect": a QR code for the address this page is live on right
+  // now (location.origin - correct whichever interface you reached it by,
+  // wired or Wi-Fi, no hardcoded IP to go stale) - EXCEPT on the kiosk
+  // itself, which loads via http://localhost:8080/ so its origin means
+  // nothing to a phone's camera. shareableUrl() below detects that one
+  // case and substitutes the controller's real network address instead.
+  // Demo mode has no controller to hand a phone, so the card just
+  // explains that instead.
+  function renderRemote() {
+    const pinAlertSlot = h("div", { class: "alert-slot" });
+    const pin = h("input", { type: "text", id: "dPin", value: cfg.remote_pin || "", placeholder: "No PIN - anyone can connect", style: "max-width:160px" });
+    $("#remoteCard").replaceChildren(
+      h("header", null, h("h3", { text: "Remote access" }), api.kind === "controller"
+        ? h("div", { class: "actions" }, h("button", { type: "button", class: "btn sm primary", text: "Save", onclick: async () => {
+          const val = pin.value.trim();
+          if (val && !/^[0-9]{4,8}$/.test(val)) return slideAlert(pinAlertSlot, "Check the PIN", "Use 4-8 digits, or leave it empty to turn the PIN off.");
+          try {
+            cfg = await api.putConfig({ ...cfg, remote_pin: val || null });
+            pinAlertSlot.replaceChildren();
+            toast(val ? "PIN saved." : "PIN turned off - remote access no longer asks for one.");
+          } catch (e) { slideAlert(pinAlertSlot, "PIN wasn't saved", errText(e)); }
+        } }))
+        : null),
+      pinAlertSlot,
+      h("div", { class: "body" },
+        api.kind === "controller"
+          ? [
+            h("p", { class: "hint", style: "margin-top:0", text: "Scan this from a phone on the gallery Wi-Fi to open the live control - handy for checking the facade from outside." }),
+            h("button", { type: "button", class: "btn primary", text: "Scan to connect", onclick: openRemoteAccessDialog }),
+            h("div", { class: "field", style: "margin-top:14px" }, h("label", { for: "dPin", text: "Access PIN" }), pin),
+            h("p", { class: "hint", text: "Asked once per browser for anyone connecting remotely - this kiosk screen is never asked. This is a speed bump, not real security: it doesn't stop someone who reaches the controller's network directly." }),
+          ]
+          : h("p", { class: "hint", style: "margin-top:0", text: "Scanning to connect needs the real controller - not available in the demo." })));
+  }
+
+  function buildQrSvg(text, cellPx) {
+    const qr = qrcode(0, "M"); // typeNumber 0 = smallest version that fits
+    qr.addData(text);
+    qr.make();
+    // Scanners need a blank "quiet zone" around the code to lock on - the
+    // spec calls for >=4 modules; without it the white fill butting right
+    // up against the dialog's dark background looked fine but didn't
+    // actually decode (confirmed with a real decoder before this fix).
+    const QUIET = 4;
+    const n = qr.getModuleCount(), size = (n + QUIET * 2) * cellPx, ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+    svg.setAttribute("width", size); svg.setAttribute("height", size);
+    svg.style.cssText = "display:block;background:#fff;border-radius:8px";
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+      if (!qr.isDark(r, c)) continue;
+      const rect = document.createElementNS(ns, "rect");
+      rect.setAttribute("x", (c + QUIET) * cellPx); rect.setAttribute("y", (r + QUIET) * cellPx);
+      rect.setAttribute("width", cellPx); rect.setAttribute("height", cellPx);
+      rect.setAttribute("fill", "#0f0e0e");
+      svg.append(rect);
+    }
+    return svg;
+  }
+
+  // location.origin is right for anyone who actually typed/scanned their
+  // way to a network address - but the kiosk display loads this page via
+  // http://localhost:8080/ (deliberately, so it never breaks if the Pi's
+  // IP changes), and "localhost" in a QR code just points a phone's camera
+  // at the phone itself. Ask the controller for a real address instead
+  // whenever we're being viewed through localhost - specifically its WiFi
+  // address, not effective_bind_ip: this is a dual-NIC Pi, bind_ip is
+  // pinned to the *wired* Art-Net interface on purpose, and a phone on
+  // the venue WiFi can't reach that network at all. Fall back to
+  // effective_bind_ip only if there's genuinely no WiFi interface up.
+  async function shareableUrl() {
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return location.origin + "/";
+    try {
+      const status = await api.artnetStatus();
+      const ip = status && (status.wifi_ip || status.effective_bind_ip);
+      if (ip) return `http://${ip}:${status.web_port}/`;
+    } catch { /* fall through */ }
+    return location.origin + "/"; // best effort - still beats throwing
+  }
+
+  async function openRemoteAccessDialog() {
+    const url = await shareableUrl();
+    const copyBtn = h("button", { type: "button", class: "btn", text: "Copy link", onclick: async () => {
+      const ok = await copyText(url);
+      copyBtn.textContent = ok ? "Copied" : url;
+      if (ok) setTimeout(() => { copyBtn.textContent = "Copy link"; }, 1800);
+    } });
+    const form = h("form", { method: "dialog", class: "dlg-body" },
+      h("h3", { class: "dlg-title", id: "dlgTitle", text: "Scan to connect" }),
+      h("p", { class: "dlg-msg", text: "Open your phone's camera and point it at this code to load the remote control." }),
+      h("div", { style: "display:flex;justify-content:center;margin:4px 0" }, buildQrSvg(url, 4)),
+      h("div", { class: "qr-url", text: url }),
+      h("p", { class: "hint", style: "text-align:center;margin:0 0 4px" , text: "Works on the gallery Wi-Fi only" }),
+      h("div", { class: "dlg-actions" }, copyBtn, h("button", { type: "submit", class: "btn primary", text: "Done" })));
+    const dlg = h("dialog", { class: "dlg", "aria-labelledby": "dlgTitle" }, form);
+    const close = () => { dlg.close(); dlg.remove(); };
+    form.addEventListener("submit", e => { e.preventDefault(); close(); });
+    dlg.addEventListener("cancel", e => { e.preventDefault(); close(); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) close(); });
+    document.body.append(dlg);
+    dlg.showModal();
   }
   // The port this page was actually served on - what the controller is
   // listening on right now (web_port is only read when it starts).
@@ -1687,53 +1936,61 @@
       try { st = await api.artnetStatus(); } catch (e) { slideAlert(alertSlot, "Couldn't read the Art-Net status", errText(e), 0); }
     }
     const universes = (st && st.universes) || patchUniverses();
+    const byUniverse = new Map(universes.map(u => [u.universe, u]));
 
-    // Which node (if any) answered for each universe the patch uses.
-    const answering = new Map();
-    if (artnetScan) for (const n of artnetScan.nodes) for (const u of n.universes_out || []) {
-      if (!answering.has(u)) answering.set(u, []);
-      answering.get(u).push(n);
-    }
-    const status = u => {
-      if (!artnetScan) return h("span", { class: "ustat unknown" }, h("i"), api.kind === "controller" ? "Not checked" : "Needs the controller");
-      const ns = answering.get(u.universe);
-      return ns ? h("span", { class: "ustat ok", title: ns.map(n => `${n.short_name || n.ip} (${n.ip})`).join(", ") }, h("i"), ns.map(n => n.short_name || n.ip).join(", "))
-        : h("span", { class: "ustat bad" }, h("i"), "No node found");
-    };
     if (artnetScan) {
-      const ok = universes.filter(u => answering.has(u.universe)).length;
-      summary.className = "conn-summary " + (ok === universes.length ? "ok" : ok ? "part" : "bad");
-      summary.textContent = `${ok} of ${universes.length} universes answering`;
+      const answeredUnis = new Set(artnetScan.nodes.flatMap(n => n.universes_out || []));
+      const ok = universes.filter(u => answeredUnis.has(u.universe)).length;
+      summary.className = "conn-summary " + (!artnetScan.nodes.length ? "bad" : ok === universes.length ? "ok" : ok ? "part" : "bad");
+      summary.textContent = artnetScan.nodes.length
+        ? `${artnetScan.nodes.length} node${artnetScan.nodes.length === 1 ? "" : "s"} found, ${ok} of ${universes.length} patched universes covered`
+        : "No nodes replied";
     }
 
-    const nodeCards = artnetScan && artnetScan.nodes.length
-      ? h("div", { class: "nodes" }, artnetScan.nodes.map(n => {
-        const used = (n.universes_out || []).filter(u => universes.some(x => x.universe === u));
-        return h("div", { class: "node" },
-          h("div", { class: "node-head" }, h("span", { class: "ustat ok" }, h("i")), h("b", { text: n.short_name || n.ip })),
-          n.long_name ? h("div", { class: "hint", style: "margin:2px 0 8px", text: n.long_name }) : null,
-          h("dl", { class: "kv", style: "grid-template-columns:96px 1fr" },
-            h("dt", { text: "IP" }), h("dd", { text: n.ip }),
-            h("dt", { text: "MAC" }), h("dd", { text: n.mac || "–" }),
-            h("dt", { text: "Outputs" }), h("dd", { text: (n.universes_out || []).map(u => u + 1).join(", ") || "–" }),
-            h("dt", { text: "Used by patch" }), h("dd", { class: used.length ? "" : "warn-text", text: used.length ? used.map(u => u + 1).join(", ") : "None of its universes" })));
-      }))
-      : null;
+    // The real, physical things on the network are the Art-Net nodes
+    // (e.g. the two Titan gateways) - lead with those, one card per node,
+    // and show each of its *ports* as a row: what universe that port is
+    // configured to output, and (cross-referenced against the patch)
+    // whether anything is actually assigned to it. A universe number on
+    // its own doesn't say which box on the wall it comes out of; this does.
+    const deviceCards = artnetScan && artnetScan.nodes.length
+      ? artnetScan.nodes.map(n => h("div", { class: "node" },
+          h("div", { class: "node-head" },
+            h("span", { class: "ustat ok" }, h("i")), h("b", { text: n.short_name || n.ip }),
+            h("span", { class: "hint", style: "margin:0 0 0 auto", text: [n.ip, n.mac].filter(Boolean).join(" · ") })),
+          n.long_name && n.long_name !== n.short_name ? h("div", { class: "hint", style: "margin:2px 0 8px", text: n.long_name }) : null,
+          h("div", { class: "tbl-wrap", style: "margin-top:8px" }, h("table", { class: "tbl" },
+            h("thead", null, h("tr", null, ["Port", "Universe", "Fixtures", "Channels", "Highest address"].map((t, i) => h("th", { text: t, class: i > 1 ? "num" : "" })))),
+            (n.universes_out || []).length
+              ? h("tbody", null, n.universes_out.map((u, i) => {
+                const patched = byUniverse.get(u);
+                return h("tr", null,
+                  h("td", { text: i + 1 }),
+                  h("td", null, h("span", { class: "ustat " + (patched ? "ok" : "unknown") }, h("i")), String(u + 1)),
+                  h("td", { class: "num", text: patched ? patched.fixture_count : "–" }),
+                  h("td", { class: "num", text: patched ? patched.channel_count : "–" }),
+                  h("td", { class: "num" + (patched && patched.max_address > 512 ? " err-text" : ""), text: patched ? (patched.max_address > 512 ? `${patched.max_address} (over 512)` : patched.max_address) : "Not used by the patch" }));
+              }))
+              : h("tbody", null, h("tr", null, h("td", { class: "empty", colspan: 5, text: "This node didn't report any output ports." })))))))
+      : [];
+
+    const coveredUnis = new Set(artnetScan ? artnetScan.nodes.flatMap(n => n.universes_out || []) : []);
+    const orphanUnis = artnetScan ? universes.filter(u => !coveredUnis.has(u.universe)) : [];
 
     body.replaceChildren(
       st ? h("dl", { class: "kv" },
         h("dt", { text: "Sending from" }), h("dd", { text: `${st.effective_bind_ip} ${st.configured_bind_ip ? "(set)" : "(automatic)"}` }),
         h("dt", { text: "Broadcast to" }), h("dd", { text: `${st.broadcast_address}:${st.artnet_port}` }),
         h("dt", { text: "Rate" }), h("dd", { text: `${st.fps} fps` }))
-        : h("p", { class: "hint", style: "margin:0", text: "The demo doesn't send any lighting data. On the controller, this shows where Art-Net goes out and which nodes are answering." }),
-      h("div", { class: "tbl-wrap", style: "margin-top:14px" }, h("table", { class: "tbl" },
-        h("thead", null, h("tr", null, ["Universe", "Node", "Fixtures", "Channels", "Highest address"].map((t, i) => h("th", { text: t, class: i > 1 ? "num" : "" })))),
-        h("tbody", null, universes.map(u => h("tr", null,
-          h("td", { text: u.universe + 1 }), h("td", null, status(u)),
-          h("td", { class: "num", text: u.fixture_count }), h("td", { class: "num", text: u.channel_count }),
-          h("td", { class: "num" + (u.max_address > 512 ? " err-text" : ""), text: u.max_address > 512 ? `${u.max_address} (over 512)` : u.max_address })))))),
-      ...[artnetScan ? h("p", { class: "hint", text: `Last scanned at ${artnetScan.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Universes are numbered from 1, like ELM.` }) : null,
-        nodeCards].filter(Boolean),
+        : h("p", { class: "hint", style: "margin:0", text: "The demo doesn't send any lighting data. On the controller, this shows which Art-Net nodes answered and what each one's ports are outputting." }),
+      !artnetScan
+        ? h("p", { class: "hint", style: "margin-top:14px", text: api.kind === "controller" ? 'Not scanned yet - click "Scan for nodes".' : "Needs the controller." })
+        : h("div", { class: "nodes", style: "margin-top:14px;grid-template-columns:1fr" }, deviceCards.length ? deviceCards : h("p", { class: "hint", text: "No nodes replied." })),
+      orphanUnis.length
+        ? h("p", { class: "hint warn-text", style: "margin-top:10px",
+            text: `Universe${orphanUnis.length > 1 ? "s" : ""} ${orphanUnis.map(u => u.universe + 1).join(", ")} ${orphanUnis.length > 1 ? "are" : "is"} used by the patch, but no node answered for ${orphanUnis.length > 1 ? "them" : "it"}.` })
+        : null,
+      artnetScan ? h("p", { class: "hint", text: `Last scanned at ${artnetScan.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Universes are numbered from 1, like ELM.` }) : null,
     );
 
     async function runScan() {
@@ -1774,7 +2031,13 @@
           api.kind === "local" ? h("button", { type: "button", class: "btn danger", text: "Reset demo", onclick: async () => {
             if (!(await ask({ title: "Reset the demo?", message: "Your demo changes in this browser are thrown away and the original configuration comes back.", ok: "Reset demo", danger: true }))) return;
             cfg = api.reset(); indexConfig(); sched.draft = null; afterConfigReplaced(); openSettings(); toast("Demo reset.");
-          } }) : null)),
+          } }) : null),
+        api.kind === "controller"
+          ? [
+            h("p", { class: "hint", text: "\"Download config.json\" above is this page's own copy - handy for a quick rollback. For an actual backup, use this instead: it's read straight from the controller's disk and bundled into one zip with any layout background images, so a Pi SD card failure doesn't take the whole venue setup with it." }),
+            h("a", { class: "btn primary", href: "api/backup", download: true, text: "Download full backup (.zip)" }),
+          ]
+          : h("p", { class: "hint", text: "A full backup needs the real controller - not available in the demo." })),
     );
   }
   function renderFixtures() {
@@ -1805,6 +2068,46 @@
     fitView("all");
   }
   HotaExport.preload();
+  // Clear: drop every manual look (default + every per-fixture override)
+  // and show whatever the schedule itself says should be playing right
+  // now - undoes whatever staff were just testing without waiting on the
+  // scheduler's own next tick. Press-twice-to-confirm instead of a modal,
+  // since this is the kind of button someone reaches for in a hurry.
+  (() => {
+    const btn = $("#clearProgram");
+    const IDLE_TEXT = btn.textContent;
+    let armed = false, timer = null;
+    function disarm() {
+      armed = false;
+      clearTimeout(timer);
+      btn.textContent = IDLE_TEXT;
+      btn.classList.remove("danger-fill");
+    }
+    btn.addEventListener("click", async () => {
+      if (!armed) {
+        armed = true;
+        btn.textContent = "Click again to clear";
+        btn.classList.add("danger-fill");
+        timer = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
+      if (blindOn) {
+        blind = clone(cfg.current_look);
+        blindEngine.setCurrentLook(blind);
+        updateTarget(); loadEditorFromTarget();
+        toast("Blind sandbox reset to match what's actually live.");
+        return;
+      }
+      lastLookEdit = Date.now();
+      try {
+        cfg.current_look = await api.clear();
+        updateTarget(); loadEditorFromTarget();
+        toast("Cleared. Showing what the schedule says should be playing now.");
+      } catch (e) { toast(errText(e), true); }
+    });
+  })();
+
   // Export GIF: the default look's matching preset (if any) names the concept.
   const describeLook = cl => {
     const own = Object.keys(cl.fixtures || {}).length;
@@ -1812,15 +2115,15 @@
       new Date().toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })].filter(Boolean).join(", ");
   };
   $("#exportGif").addEventListener("click", () => {
-    const def = cfg.current_look.default || HotaEngine.OFF;
+    const def = activeLook().default || HotaEngine.OFF;
     const presets = (cfg.presets || []).slice().sort((a, b) => a.slot - b.slot);
     const i = presets.findIndex(p => JSON.stringify(p.look) === JSON.stringify(def));
-    if (api.kind === "controller") refreshCurrentLook(); // pick up anything changed elsewhere
+    if (api.kind === "controller" && !blindOn) refreshCurrentLook(); // pick up anything changed elsewhere
     HotaExport.open({
       cfg, elev, layout: currentLayout(), view: currentView || "all",
       title: i >= 0 ? presetName(presets[i], i) : "Untitled concept",
-      subtitle: describeLook(cfg.current_look),
-      getCurrentLook: () => cfg.current_look,
+      subtitle: describeLook(activeLook()) + (blindOn ? " (blind - not live)" : ""),
+      getCurrentLook: () => activeLook(),
       describe: describeLook,
       onDone: msg => toast(msg),
       onError: msg => toast(`The GIF couldn't be made: ${msg}`, true),

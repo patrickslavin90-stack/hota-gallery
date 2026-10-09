@@ -63,11 +63,11 @@ sine_chase, bitmap). The animated ones are time-driven, not
 position-driven like a static gradient - see Engine._fixture_colors.
 
 `schedule` is an ordered list of entries - {name, active_days, start_time,
-end_time, start_date, end_date, look, zone, enabled}. `enabled` (default
-true) lets a standing entry - BAU hours, say - be switched off without
-deleting it, so it stays available as the thing that runs whenever
-nothing else is scheduled, rather than needing to be re-created from
-scratch later. On each tick (see
+end_time, start_date, end_date, look, zone, enabled, priority}. `enabled`
+(default true) lets a standing entry - BAU hours, say - be switched off
+without deleting it, so it stays available as the thing that runs
+whenever nothing else is scheduled, rather than needing to be re-created
+from scratch later. On each tick (see
 scheduler.py) the *last* entry whose day/time/date window contains "now"
 gets applied, independently *per target* - `zone: null` (or omitted)
 targets the whole layout (current_look.default), `zone: "dishes"` targets
@@ -80,6 +80,19 @@ rather than forcing it off. start_date/end_date ("MM-DD") are optional and
 don't wrap across New Year's - a range must stay within one calendar
 year, same limit sacn2wiz's config.py would call out if it had dates at
 all.
+
+`priority` (default false) is for a one-off request - a special event
+that needs to override the standing year-round schedule for just its own
+window, without editing that standing schedule at all. A priority entry
+always wins over a non-priority entry for the same target whenever both
+match, *regardless of list order* (last-match-wins is still the
+tie-breaker between two priority entries, or two non-priority ones). It's
+also self-cleaning: scheduler.py deletes a priority entry outright once
+it's done its job - either its own `end_date` has passed, or someone
+switches its `enabled` off - rather than leaving a one-off entry behind
+to clutter the list the way a standing entry's `enabled: false` deliberately
+does. A priority entry with no end_date only ever goes away via that
+manual switch.
 
 Overlapping fixture addresses are *not* treated as an error here, same
 call as sacn2wiz's bulbs: deliberate ganging (several fixtures meant to
@@ -117,6 +130,10 @@ CONFIG_DEFAULTS: Dict[str, Any] = {
     "bind_ip": None,
     "web_port": 8080,
     "device_name": "",
+    # Client-side speed bump for remote (non-kiosk) connections only - not
+    # real security, same philosophy as the house-lights bridge's admin
+    # PIN. null/"" turns it off; the kiosk screen itself never asks.
+    "remote_pin": "1234",
     "fixtures": [],
     "zones": [],
     "current_look": {"default": off_look(), "fixtures": {}},
@@ -133,7 +150,7 @@ FIXTURE_KEYS = {
 }
 
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # index matches datetime.weekday()
-SCHEDULE_ENTRY_KEYS = {"name", "active_days", "start_time", "end_time", "start_date", "end_date", "look", "zone", "enabled"}
+SCHEDULE_ENTRY_KEYS = {"name", "active_days", "start_time", "end_time", "start_date", "end_date", "look", "zone", "enabled", "priority"}
 ZONE_KEYS = {"name"}
 PRESET_KEYS = {"slot", "name", "look"}
 LAYOUT_KEYS = {"name", "fixtures", "background"}
@@ -392,6 +409,9 @@ def _validate_schedule(schedule: Any, zone_names: Dict[str, int], errors: List[s
         if "enabled" in entry and not isinstance(entry["enabled"], bool):
             errors.append(f"{where}: enabled must be true or false, got {entry['enabled']!r}")
 
+        if "priority" in entry and not isinstance(entry["priority"], bool):
+            errors.append(f"{where}: priority must be true or false, got {entry['priority']!r}")
+
         days = entry.get("active_days")
         if not isinstance(days, list) or not days or not all(d in DAY_NAMES for d in days):
             errors.append(f"{where}: active_days must be a non-empty list from {DAY_NAMES}")
@@ -609,6 +629,9 @@ def validate_config(raw: Any) -> Dict[str, Any]:
 
     if not isinstance(cfg["device_name"], str):
         errors.append(f"device_name must be a string, got {cfg['device_name']!r}")
+
+    if cfg["remote_pin"] not in (None, "") and not (isinstance(cfg["remote_pin"], str) and cfg["remote_pin"].isdigit()):
+        errors.append(f"remote_pin must be a string of digits, or null/empty to disable it, got {cfg['remote_pin']!r}")
 
     zones = cfg["zones"]
     zone_names: Dict[str, int] = {}

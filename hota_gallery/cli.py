@@ -50,7 +50,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     # Same Store the API uses - a scheduled look change is saved and
     # reloaded exactly like a manual one, not a separate code path.
-    scheduler = Scheduler(httpd.store.get_config, httpd.store.set_default_look, httpd.store.set_fixture_looks)
+    scheduler = Scheduler(httpd.store.get_config, httpd.store.set_default_look, httpd.store.set_fixture_looks, httpd.store.set_schedule)
     scheduler.start_background()
 
     randomizer = Randomizer(httpd.store.get_config, httpd.store.set_fixture_looks)

@@ -27,6 +27,8 @@
     putConfig(cfg) { return request("PUT", "/api/config", cfg); }
     putLook(look) { return request("PUT", "/api/look", look); }
     putSelection(keys, look) { return request("PUT", "/api/look/selection", { fixtures: keys, look }); }
+    clear() { return request("PUT", "/api/clear", {}); }
+    setCurrentLook(cl) { return request("PUT", "/api/look/full", cl); }
     putPresets(list) { return request("PUT", "/api/presets", list); }
     putSchedule(list) { return request("PUT", "/api/schedule", list); }
     putRandomizer(obj) { return request("PUT", "/api/randomizer", obj); }
@@ -66,6 +68,21 @@
     async putSelection(keys, look) {
       const over = this.cfg.current_look.fixtures || (this.cfg.current_look.fixtures = {});
       for (const k of keys) { if (look) over[k] = look; else delete over[k]; }
+      this._save();
+      return this.cfg.current_look;
+    }
+    async setCurrentLook(cl) {
+      this.cfg.current_look = cl;
+      this._save();
+      return this.cfg.current_look;
+    }
+    async clear() {
+      // No background scheduler runs in the demo, so there's no "what's
+      // scheduled right now" to resync to the way the real controller
+      // does - this just drops every override back to off, same spirit
+      // (undo whatever look I was just trying out) in the one mode where
+      // there's no schedule underneath to fall back to instead.
+      this.cfg.current_look = { default: structuredClone(HotaEngine.OFF), fixtures: {} };
       this._save();
       return this.cfg.current_look;
     }

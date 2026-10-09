@@ -57,7 +57,16 @@ def parse_artpollreply(data: bytes) -> Optional[Dict[str, object]]:
     fault-finding (name/MAC/reported universes) - not every field in the
     239-byte spec payload, and deliberately tolerant of a short or
     slightly nonstandard reply (returns whatever it could parse) rather
-    than raising on one real node's quirky firmware."""
+    than raising on one real node's quirky firmware.
+
+    A multi-port node (e.g. a Titan gateway with several DMX outputs)
+    doesn't necessarily describe all its ports in one reply - ours answer
+    with *one ArtPollReply per port*, each carrying just that port's own
+    universe and a `BindIndex` (spec field, byte 211) saying which port
+    it is. discover_nodes below is what merges a node's several replies
+    back into one device with every port; this function only ever
+    decodes a single packet, so it returns just that one port's data
+    plus its bind_index for the caller to merge by."""
     if len(data) < 18 or data[:8] != b"Art-Net\x00":
         return None
     opcode = data[8] | (data[9] << 8)
@@ -75,10 +84,9 @@ def parse_artpollreply(data: bytes) -> Optional[Dict[str, object]]:
         pass
     try:
         num_ports = data[173]
-        node["num_ports"] = num_ports
         net_switch, sub_switch = data[18], data[19]
         sw_in, sw_out = data[186:190], data[190:194]
-        n = min(4, num_ports)
+        n = min(4, max(1, num_ports))
         port_address = lambda sw: ((net_switch & 0x7F) << 8) | ((sub_switch & 0x0F) << 4) | (sw & 0x0F)
         node["universes_in"] = [port_address(sw_in[i]) for i in range(n)]
         node["universes_out"] = [port_address(sw_out[i]) for i in range(n)]
@@ -90,16 +98,36 @@ def parse_artpollreply(data: bytes) -> Optional[Dict[str, object]]:
             node["mac"] = ":".join(f"{b:02x}" for b in mac)
     except Exception:
         pass
+    try:
+        # BindIndex: "the order of bound devices" per spec - 1 for a
+        # node replying about its only (or first) port, 2+ for each
+        # further port on the same physical box. Missing/0 on a node
+        # that doesn't use it, which is still fine as a merge key since
+        # there's then only ever one reply from that IP to merge.
+        node["bind_index"] = data[211] if len(data) > 211 else 1
+    except Exception:
+        node["bind_index"] = 1
     return node
 
 
-def discover_nodes(bind_ip: str, timeout: float = 2.0) -> List[Dict[str, object]]:
+def discover_nodes(bind_ip: str, timeout: float = 3.0) -> List[Dict[str, object]]:
     """Broadcast ArtPoll and collect ArtPollReply packets for `timeout`
     seconds - a point-in-time snapshot of who's actually answering on the
     segment, for the Settings tab's "Scan for nodes" diagnostic. Binds to
     the real Art-Net port (not an ephemeral one) because nodes broadcast
     their reply to port 6454, not back to whatever port the poll came
-    from."""
+    from.
+
+    A box with several DMX output ports (confirmed against the two real
+    Titan nodes here: one answered with 7 separate replies, the other
+    with 5) sends one reply per port, staggered over a couple of
+    seconds rather than all at once - the default timeout is long enough
+    to catch all of them. Replies are merged per IP, one port per
+    distinct BindIndex, ordered by BindIndex so "port 1/2/3..." in the
+    UI lines up with the node's own numbering rather than arrival order
+    - a node resending the same port's reply (observed happening every
+    few seconds) just overwrites that BindIndex's entry with the same
+    data rather than appearing twice."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -108,7 +136,8 @@ def discover_nodes(bind_ip: str, timeout: float = 2.0) -> List[Dict[str, object]
     try:
         sock.sendto(build_artpoll(), ("255.255.255.255", ARTNET_PORT))
 
-        nodes: Dict[str, Dict[str, object]] = {}
+        # ip -> {"info": {short_name, long_name, mac, ip}, "ports": {bind_index: node}}
+        devices: Dict[str, Dict[str, object]] = {}
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
@@ -116,10 +145,23 @@ def discover_nodes(bind_ip: str, timeout: float = 2.0) -> List[Dict[str, object]
             except socket.timeout:
                 continue
             node = parse_artpollreply(data)
-            if node is not None:
-                node["ip"] = addr[0]
-                nodes[addr[0]] = node
-        return sorted(nodes.values(), key=lambda n: n["ip"])
+            if node is None:
+                continue
+            ip = addr[0]
+            dev = devices.setdefault(ip, {"info": {}, "ports": {}})
+            dev["info"].update({k: v for k, v in node.items() if k not in ("universes_in", "universes_out", "bind_index")})
+            dev["ports"][node.get("bind_index", 1)] = node
+
+        result = []
+        for ip, dev in devices.items():
+            ports = [dev["ports"][i] for i in sorted(dev["ports"])]
+            merged = dict(dev["info"])
+            merged["ip"] = ip
+            merged["num_ports"] = len(ports)
+            merged["universes_in"] = [u for p in ports for u in (p.get("universes_in") or [])]
+            merged["universes_out"] = [u for p in ports for u in (p.get("universes_out") or [])]
+            result.append(merged)
+        return sorted(result, key=lambda n: n["ip"])
     finally:
         sock.close()
 
