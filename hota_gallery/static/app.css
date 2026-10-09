@@ -191,6 +191,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 
 /* ---------- live ---------- */
 .live { display: grid; grid-template-columns: 1fr var(--panel-w); height: 100%; }
+.live.full-width { grid-template-columns: 1fr; }
 .stage { position: relative; display: grid; grid-template-rows: 1fr auto; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
 .canvas-wrap { position: relative; min-height: 0; overflow: hidden; background: var(--bg); }
 .canvas-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }

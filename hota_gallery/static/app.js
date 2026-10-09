@@ -1023,7 +1023,14 @@
     $("#view3dSeg").hidden = !on;
     $("#viewSeg").hidden = on || !isBuilding();
     document.querySelector('.seg[aria-label="Zoom"]').hidden = on;
-    $("#readout").textContent = on ? "Drag to orbit, right-drag to pan, scroll to zoom. Selecting fixtures works in the 2D view." : "";
+    $("#readout").textContent = on ? "Drag to orbit, right-drag to pan, scroll to zoom. This is a visualiser - switch back to the 2D view to change the lighting." : "";
+    // 3D is a visualiser, not an editor - no selecting, no look controls,
+    // no presets, no "Clear" (which changes the live look). Hiding the
+    // panel also frees its width for the model instead of leaving a gap.
+    $("#panel").hidden = on;
+    document.querySelector(".presets").hidden = on;
+    $("#clearProgram").hidden = on;
+    document.querySelector(".live").classList.toggle("full-width", on);
     if (view3d) view3d.setActive(on);
   }
   $("#toggle3d").addEventListener("click", () => setView3d(!view3dOn));
