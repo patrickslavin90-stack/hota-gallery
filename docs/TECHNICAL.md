@@ -1,6 +1,6 @@
 # HOTA Gallery façade lighting: technical documentation
 
-Lighting control for the HOTA Gallery façade (Home of the Arts, Gold Coast). A Python service on a Raspberry Pi drives 154 fixtures (785 LEDs) over Art-Net, and a browser UI controls it. This document covers the whole system, back end and front end, plus the 2026 UI redesign. It's written so the work can be picked up again from a fresh machine.
+Lighting control for the HOTA Gallery façade (Home of the Arts, Gold Coast). A Python service on a Raspberry Pi drives 154 fixtures (785 LEDs) over Art-Net, and a browser UI controls it. This document covers the whole system, back end and front end, including the 2026 UI redesign by Zac and Patrick. It's written so the work can be picked up again from a fresh machine.
 
 A branded HTML version of this document is in `docs/technical.html`, generated from this file by `tools/build_docs.py`.
 
@@ -15,27 +15,28 @@ A branded HTML version of this document is in `docs/technical.html`, generated f
 | Config | one JSON file: `/etc/hota-gallery/config.json` on the Pi, `data/config.json` in the repo |
 | UI | plain HTML, CSS and JavaScript with no build step, served by the controller from `hota_gallery/static/` |
 | Web port | `web_port` in config (8080 by default) |
-| Repo | https://github.com/zacpetersengit/hota-gallery (fork of `patrickslavin90-stack/hota-gallery`) |
+| Network | two interfaces on the Pi: wired, for Art-Net to the lighting network (`bind_ip`), and WiFi, for staff phones and tablets reaching the UI |
+| Kiosk | the Pi also drives its own screen, which shows the UI at `http://localhost:<port>` (no PIN asked there) |
+| Repo | **https://github.com/patrickslavin90-stack/hota-gallery**, branch `ui-redesign` (the main line) |
 
 ## Repository and branches
 
-| Branch | What's on it |
-|---|---|
-| `master` | the original project, untouched by the redesign |
-| `ui-redesign` | the new UI, elevation linework, schedules and settings, GIF export and all fixes |
-| `ui-redesign-3d` | everything on `ui-redesign` plus the prototype 3D view |
+The project lives at **`patrickslavin90-stack/hota-gallery`** (Patrick's repo). Development happens on its `ui-redesign` branch. Zac's fork, `zacpetersengit/hota-gallery`, is where Zac's contributions are prepared. Zac has no push access to Patrick's repo, so work reaches it either by Patrick merging a branch from the fork (as he did with `ui-redesign-3d`) or by a pull request.
 
-Remotes: `origin` is the fork (`zacpetersengit/hota-gallery`) and `upstream` is the original (`patrickslavin90-stack/hota-gallery`).
+| Where | Branch | What's on it |
+|---|---|---|
+| Patrick's repo | `master` | the original project |
+| Patrick's repo | `ui-redesign` | **the main line**: the full redesign, including Zac's work merged in, plus Patrick's additions |
+| Zac's fork | `ui-redesign`, `ui-redesign-3d` | Zac's contributions as originally pushed (already merged into Patrick's `ui-redesign`) |
+| Zac's fork | `docs-technical` | this document, based on Patrick's `ui-redesign` |
 
-Commit history of the redesign, oldest first:
+In a clone of Patrick's repo, `origin` is Patrick's repo. If you contribute from the fork, add it as a second remote.
 
-1. `8523018` HOTA Gallery lighting control, initial commit for review (upstream)
-2. `99b57fd` New web UI: elevation linework, HOTA branding, schedules and settings
-3. `dd0cdf4` Header: say which controller, add a Lights reachability indicator
-4. `d436f04` Handle a lost controller; warn when fixtures ignore the default look
-5. `17a217a` Export the live look as an animated GIF for clients and approvals
-6. `dbff167` Export GIF: always show the look just picked
-7. `487a0c2` Prototype 3D view (`ui-redesign-3d` only)
+How the redesign came together:
+
+1. `8523018`, Patrick: the original controller and UI.
+2. Zac's work (fork): the new UI with elevation linework, HOTA branding, schedules and settings (`99b57fd`); the controller label and Lights indicator (`dd0cdf4`); lost-connection handling and the own-look warning (`d436f04`); Export GIF (`17a217a`, `dbff167`); and the prototype 3D view (`487a0c2`).
+3. Patrick (`ui-redesign`): the Scan-to-connect QR code (`d90b9e8`), the phone layout (`1175f7b`), the remote PIN gate (`f517441`), the touch-tablet layout (`a03ed42`), priority schedule entries and the full backup download (`dd266fb`), the Clear button and the Art-Net view by device (`30bd3bc`), and the multi-port node discovery fix (`fa09c64`). He then merged Zac's `ui-redesign-3d` (`dd9a862`), locked 3D to viewing only (`a21dff3`) and added Blind mode (`a584bd2`).
 
 Repository layout:
 
@@ -78,6 +79,7 @@ vercel.json                   static demo deployment config
 - **One process.** `python -m hota_gallery serve` starts the engine's sender thread, the HTTP server, and the scheduler, randomiser and clock-chime threads.
 - **One source of truth.** The config is held in memory by the engine. Every write goes through `Store`: it validates the whole config, saves it atomically and reloads the engine. A change is live the moment the HTTP call returns.
 - **Preview is real output.** `GET /api/preview` returns exactly the colours being sent on the wire, computed by the same `sample_colors()` the sender uses.
+- **Two networks.** Art-Net goes out the wired interface only (`bind_ip`), so it never leaks onto the venue WiFi. Staff reach the UI over WiFi. That's why the "Scan to connect" QR code uses the WiFi address (`wifi_ip`), not `bind_ip`.
 
 ## Back end (Python)
 
@@ -87,10 +89,10 @@ vercel.json                   static demo deployment config
 |---|---|
 | `cli.py` | Entry points: `validate` and `serve`. Wires the engine, web server and background loops together. |
 | `engine.py` | `Engine`: loads fixtures, computes every LED's colour per frame from the current look, builds 512-byte DMX frames per universe, and runs the sender loop at `fps`. Also handles the systemd watchdog (`sd_notify`). |
-| `artnet.py` | Builds ArtDMX packets, plus the `ArtNetSender` broadcast socket and ArtPoll/ArtPollReply discovery. |
-| `webapp.py` | `Store` (locked config mutations) and the HTTP handler: the routes in "HTTP API". |
+| `artnet.py` | Builds ArtDMX packets, plus the `ArtNetSender` broadcast socket and ArtPoll/ArtPollReply discovery. Multi-port nodes (such as the venue's Titan gateways) send one reply per port; discovery merges them per IP, ordered by `BindIndex`, with a 3 s window. |
+| `webapp.py` | `Store` (locked config mutations, including `set_current_look`, `clear_to_schedule` and `create_backup`) and the HTTP handler: the routes in "HTTP API". `_wifi_ip()` finds the Pi's WiFi address with `ip -4 -o addr show`. |
 | `config.py` | Schema, defaults and `validate_config()`, which collects every error at once; `load_config` and `save_config` (atomic `.tmp` then `os.replace`). |
-| `scheduler.py` | Applies time-of-day looks per target (the whole building, or a zone). |
+| `scheduler.py` | Applies time-of-day looks per target (the whole building, or a zone). Handles priority entries and deletes them once they're finished. |
 | `randomizer.py` | Short random preset bursts on random zones. |
 | `clock_chime.py` | Plays a look on the hour, within an hour window. |
 | `shaders.py` | Python ports of ELM's generative shaders: circle, line, cross and square scroll, radar, plasma. |
@@ -121,7 +123,7 @@ python -m hota_gallery serve --config data/config.json --host 127.0.0.1 --port 8
 
 | Loop | Interval | Behaviour |
 |---|---|---|
-| Scheduler | every 15 s | For each target (whole building, or a zone), the **last** matching enabled entry in the list wins. It's re-applied only when the active entry changes. If a target has been dark for 60 s while its entry wants it lit, the entry is re-applied. Dark overrides on fixtures in zones without a schedule are cleared after 60 s. |
+| Scheduler | every 15 s | For each target (whole building, or a zone), a matching **priority** entry beats any non-priority entry wherever it sits in the list. Within each tier, the **last** matching enabled entry wins. Finished priority entries (switched off, or past their `end_date`) are deleted from the schedule automatically. It's re-applied only when the active entry changes. If a target has been dark for 60 s while its entry wants it lit, the entry is re-applied. Dark overrides on fixtures in zones without a schedule are cleared after 60 s. |
 | Randomiser | checks every 5 s | Fires at a jittered 0.5–1.5 × (3600 / `events_per_hour`) seconds. Each burst applies a random preset from `preset_slots` to a random zone in `targets` for `burst_s` seconds, then clears it. |
 | Clock chime | checks every 5 s | At minute 0, when `start_hour` ≤ hour ≤ `end_hour`, applies `look` to every fixture for `duration_s` seconds, then clears it. |
 
@@ -133,7 +135,7 @@ Time windows can't cross midnight (start < end) and date ranges can't cross New 
 
 ### Deployment on the Pi (systemd)
 
-`hota-gallery.service` installs the package to `/opt/hota-gallery`, runs it as the unprivileged `hota-gallery` user with `Type=notify` and `WatchdogSec=30s`, and hardens it (`ProtectSystem=strict`, no capabilities, `AF_INET`/`AF_UNIX` only). The full install steps are in the header comment of `hota-gallery.service`.
+`hota-gallery.service` installs the package to `/opt/hota-gallery`, runs it as the unprivileged `hota-gallery` user with `Type=notify` and `WatchdogSec=30s`, and hardens it (`ProtectSystem=strict`, no capabilities, and only `AF_INET`, `AF_UNIX` and `AF_NETLINK` sockets). `AF_NETLINK` is needed only for the `ip addr` call behind Scan to connect. Without it the call quietly returns nothing, and the QR code falls back to the wired address. The full install steps are in the header comment of `hota-gallery.service`.
 
 ```bash
 sudo systemctl restart hota-gallery      # apply a new web_port, pick up new code
@@ -162,8 +164,9 @@ All bodies are JSON. Errors return `{"error": "..."}`. Validation errors (400) l
 | `/api/randomizer` | the randomiser object |
 | `/api/clock_chime` | the clock chime object |
 | `/api/layouts` | the layouts list |
-| `/api/artnet/status` | `{configured_bind_ip, effective_bind_ip, artnet_port, broadcast_address, web_port, fps, universes: [{universe, fixture_count, channel_count, max_address}]}` |
-| `/api/artnet/discover` | ArtPoll scan (~2 s): `[{ip, mac, short_name, long_name, num_ports, universes_in, universes_out}]`. 500 if the scan couldn't run. |
+| `/api/backup` | zip download (`<device>-backup-<stamp>.zip`): `config.json`, `backgrounds/*` and `backup-info.txt`, read from the controller's own copy. No application code. |
+| `/api/artnet/status` | `{configured_bind_ip, effective_bind_ip, wifi_ip, artnet_port, broadcast_address, web_port, fps, universes: [{universe, fixture_count, channel_count, max_address}]}`. `wifi_ip` is null off the Pi. |
+| `/api/artnet/discover` | ArtPoll scan (~3 s), one entry per device: `[{ip, mac, short_name, long_name, num_ports, universes_in, universes_out}]`. A multi-port node's per-port replies are merged, in port order. 500 if the scan couldn't run. |
 | `/api/layouts/<name>/background` | the layout's background image (404 if none) |
 
 ### PUT
@@ -173,6 +176,8 @@ All bodies are JSON. Errors return `{"error": "..."}`. Validation errors (400) l
 | `/api/config` | full config | replaces everything; returns the validated config |
 | `/api/look` | a look | sets `current_look.default`; returns it |
 | `/api/look/selection` | `{fixtures: ["u:a", …], look: look \| null}` | gives those fixtures their own look, or clears it when `look` is null; returns `current_look` |
+| `/api/look/full` | a whole `current_look` | replaces the default and every per-fixture look in one write (Blind mode's "Go live"); returns it |
+| `/api/clear` | (empty) | drops every manual look and applies what the schedule says should be playing now, including zone entries and priority entries. Uses the same `active_entry` as the scheduler, so the two always agree. Returns `current_look`. |
 | `/api/fixtures/<u:a>/position` | `{dx, dy}` | moves a fixture's real `points` (changes effects; not used by the UI) |
 | `/api/schedule` | schedule list | returns the saved list |
 | `/api/presets` | presets list | returns the saved list |
@@ -201,6 +206,7 @@ Unknown keys are errors everywhere except at the top level. Colours are `{r, g, 
 | `bind_ip` | IPv4 string or null (null = choose automatically) | null |
 | `web_port` | int 1–65535 (the UI enforces ≥ 1024) | 8080 |
 | `device_name` | string | "" |
+| `remote_pin` | string of digits, or null/"" to turn it off | "1234" |
 | `fixtures` | list of fixtures | |
 | `zones` | `[{name}]`, unique names (here `strips`, `dishes`) | |
 | `current_look` | `{default: look, fixtures: {"u:a": look}}`; keys must be existing fixtures | all off |
@@ -226,7 +232,7 @@ Unknown keys are errors everywhere except at the top level. Colours are `{r, g, 
 ### Other sections
 
 - **Preset:** `{slot: int ≥ 0 (unique), name: string | null, look}`.
-- **Schedule entry:** `{name (unique, non-empty), enabled (default true), zone: null | zone name, active_days: subset of mon…sun (non-empty), start_time "HH:MM" < end_time "HH:MM", start_date / end_date: "MM-DD" | null (start ≤ end), look}`.
+- **Schedule entry:** `{name (unique, non-empty), enabled (default true), priority (default false), zone: null | zone name, active_days: subset of mon…sun (non-empty), start_time "HH:MM" < end_time "HH:MM", start_date / end_date: "MM-DD" | null (start ≤ end), look}`. A priority entry is for a one-off request: it overrides the standing schedule in its window and is deleted once it's finished.
 - **Randomiser:** `{enabled, events_per_hour > 0, burst_s > 0, targets: [zone names], preset_slots: [existing slots]}`. Deleting a preset the randomiser still references fails validation, which is why the UI removes it from `preset_slots` first.
 - **Clock chime:** `{enabled, look, duration_s > 0, start_hour 0–23 ≤ end_hour 0–23}`.
 - **Layout:** `{name (unique), fixtures: {"u:a": [[x, y], [x, y]]}, background?: string | null}`. Display positions only.
@@ -243,20 +249,21 @@ No framework and no build step. Edit the file, reload the browser.
 | `backend.js` | `ControllerBackend` (the HTTP API) and `LocalBackend` (demo: localStorage + in-page engine) |
 | `engine.js` | browser port of `engine.py` + `shaders.py` + `bitmaps.py`; same maths and same look schema |
 | `export.js` | Export GIF |
-| `view3d.js` | 3D view (`ui-redesign-3d` branch) |
+| `view3d.js` | 3D view |
 | `elevations.json` | traced elevation linework, generated by `tools/build_elevations.py` |
 | `building-layout.json` | built-in "Building" layout, generated by `tools/map_to_elevations.py` |
-| `building3d.json` | 3D massing, generated by `tools/build_3d.py` (3D branch) |
+| `building3d.json` | 3D massing, generated by `tools/build_3d.py` |
 | `demo-config.json` | config used by demo mode (a copy of `data/config.json`) |
 | `hota-logo.svg` | white HOTA wordmark (from hota.com.au) |
 | `legacy.html` | the original UI, still at `/static/legacy.html` |
-| `vendor/` | `gifenc.esm.js` (MIT); `three/` (three.js 0.160 + OrbitControls, MIT, 3D branch) |
+| `vendor/` | `gifenc.esm.js` (MIT), `qrcode.js` (MIT, for Scan to connect), and `three/` (three.js 0.160 + OrbitControls, MIT) |
 
 ### Boot and backends
 
 1. `backend.js connect()` tries `GET /api/status`. If it gets a JSON answer it uses `ControllerBackend`; otherwise it loads `static/demo-config.json` into `LocalBackend`, which saves to `localStorage` (key `hota-gallery-demo-config-v1`) and computes the preview with `engine.js`.
-2. It loads the config, `elevations.json`, `building-layout.json` and, on the 3D branch, `building3d.json`.
-3. It renders the layout picker, selection tools, presets and look editor, then starts the loops.
+2. It loads the config, `elevations.json`, `building-layout.json` and `building3d.json`.
+3. If the page isn't on the kiosk (`localhost`) and `remote_pin` is set, it asks for the PIN once per browser and remembers it in `localStorage`. This is a speed bump, not security: nothing server-side enforces it.
+4. It renders the layout picker, selection tools, presets and look editor, then starts the loops.
 
 ### Live tab
 
@@ -266,6 +273,9 @@ No framework and no build step. Edit the file, reload the browser.
 - **Target box.** Says what you're editing. When nothing is selected and some fixtures have their own look, it warns (amber) and offers "Select them" and "Revert all to default".
 - **Presets.** Click to apply. Rename, delete and "Save current look" go through themed dialogs.
 - **Layouts menu.** Move fixtures (drag or arrow keys, then Save or Discard), new, rename, delete, add or remove the selection, and set a background image (controller only).
+- **Clear.** Press twice to confirm. Calls `PUT /api/clear` to drop every manual look and show what the schedule says should be playing. In the demo, with no scheduler, it goes to off.
+- **Blind mode.** "Blind" programs a look without touching the real lights. It copies the live look into a local sandbox, and every edit (looks, selections, presets, revert, Clear) goes there instead. The preview comes from a local `engine.js`, so the 2D canvas and the 3D view both show the blind look, while an amber banner makes the mode obvious. "Go live" (with a confirm) sends the whole sandbox with `PUT /api/look/full`.
+- **Screen sizes.** Desktop is two panes. The touch-tablet tier keeps that layout with bigger tap targets, and the preset edit and delete buttons are always visible because there's no hover on touch. Below 600 px (phones) the drawing is hidden and the controls go full-screen.
 - **Preview polling.** In controller mode, `GET /api/preview` every 100 ms, one request at a time, while the tab is visible. After 5 consecutive failures the header turns red ("Lost connection…") and polling backs off to every 2 s. The first success reconnects, reloads the config and shows a toast. Every 5 s, `/api/status` re-syncs `current_look`, except within 3 s of a local edit.
 
 ### Schedules tab
@@ -279,9 +289,10 @@ No framework and no build step. Edit the file, reload the browser.
 ### Settings tab
 
 - **Device.** Name, output fps, network interface (`bind_ip`) and web port, all saved to config. The web port must be 1024–65535 and only takes effect after a restart, so an amber notice offers "Copy restart command" and "Open new address".
-- **Art-Net output.** Status from `/api/artnet/status`, plus a per-universe Node column from the last ArtPoll scan: green when a node replied, red for no node, grey when not checked. A summary pill shows "N of M universes answering", and each node that replied gets a card. Scans run automatically on page load, every 5 minutes and on "Scan again". A failure slides down a red alert under the header.
+- **Remote access.** Sets `remote_pin`. "Scan to connect" shows a QR code for the address phones should use: the page's own address, or on the kiosk (`localhost`) the Pi's `wifi_ip`, falling back to the wired address.
+- **Art-Net output.** Organised by device: one card per node that replied (for example the two Titan gateways), listing each port and the universe it outputs, cross-referenced with the patch for fixture and channel counts. Universes the patch uses that no node answered for get a separate warning line. Scans run automatically on page load, every 5 minutes and on "Scan again". A failure slides down a red alert under the header.
 - **Header Lights pill.** The same scan result: green "Lights: N/M universes", amber for partial, red "No lights answering". Clicking it opens Settings. The connection label says "Controller on this computer" or "Controller at <host>", which names the controller rather than claiming the building is reachable.
-- **Configuration file.** Download `config.json`, import a replacement (`PUT /api/config`) and, in the demo, reset.
+- **Configuration file.** Download `config.json`, download a full backup (`GET /api/backup`: a zip of the config, background images and a manifest), import a replacement (`PUT /api/config`) and, in the demo, reset.
 - **Fixtures table.** Filterable; universe and address shown 1-based like ELM.
 
 ### Export GIF (`export.js`)
@@ -291,12 +302,13 @@ No framework and no build step. Edit the file, reload the browser.
 - **Options.** Concept name (pre-filled from a matching preset), description, view (whole building or one elevation), length (defaults to the look's longest period) and size: Small 640×360, Medium 960×540, Large 1280×720, Full HD or 4K. The file-size estimate is calibrated from real exports (a 6 s export is ~5 MB at Medium and ~32 MB at 4K).
 - **Behaviour.** The dialog opens instantly (the logo and fonts are preloaded at page load) and follows the live look while open.
 
-### 3D view (`view3d.js`, branch `ui-redesign-3d`)
+### 3D view (`view3d.js`)
 
 - **What it shows.** The four elevation walls folded into a rough massing from `building3d.json`. In three.js coordinates, x is plan X east, y is height and z is minus plan Y (north), all in metres.
 - **The model.** Walls are opaque dark meshes made from the traced outlines, with the linework drawn 12 mm in front of them. There's a roof cap at roof level and a ground grid.
 - **The lights.** Additive glow point-sprites 70 mm in front of the wall, with extra samples every 140 mm along the strips so they read as continuous tape. They're coloured each frame from the same `live.preview` as the 2D view.
-- **Camera.** Orbit controls, plus presets (North-east, South-east, South-west, North-west, Above) fitted to the window. Selection stays in 2D.
+- **Camera.** Orbit controls, plus presets (North-east, South-east, South-west, North-west, Above) fitted to the window.
+- **View only.** While 3D is on, the look panel, presets, Clear and Blind are hidden and the model takes the full width. It's for looking at the building, not editing. With Blind on, it shows the blind look.
 - **Loading.** three.js loads only when 3D is first opened.
 
 ### UI building blocks
@@ -362,6 +374,7 @@ python tools/check_ui_api.py http://127.0.0.1:8765   # UI files + every API call
 - **Local test controller.** Run it on a copy of the config with `bind_ip` set to `127.0.0.1`, so Art-Net stays on the machine.
 - **Use `127.0.0.1` on Windows.** It's faster than `localhost`, which tries IPv6 first, and the Python server opens a new connection per request, so every request pays ~0.3 s.
 - **Background tabs.** Browsers pause `requestAnimationFrame` in hidden tabs, so the 2D glow, the export preview and the 3D view only animate while the tab is visible.
+- **Patrick's checks.** Patrick verified the tablet tier with Playwright at 1920×1080 with touch emulation, and Blind mode end to end against a real back end.
 - **Screenshots** were taken with headless Edge:
 
 ```bash
@@ -376,7 +389,9 @@ msedge --headless=new --disable-gpu --hide-scrollbars --run-all-compositor-stage
 - **3D model is rough.** The South setout only shows that wall from Level 2 up and across about 18 of 26 m. The canopy pop-outs are drawn flat on their walls, and walls are single planes. An export of the architect's model (OBJ, FBX, glTF or IFC) would replace the folded walls.
 - **Caching.** Static files are sent with `no-store`, so `vendor/` (three.js, about 670 KB) re-downloads each time. Caching `vendor/` in `webapp.py` would be a small improvement.
 - **4K GIFs are large.** About 32 MB for 6 s. An MP4 or WebM export would suit high-resolution screens better.
-- **Not yet done:** the Vercel deploy, merging `ui-redesign` (or `-3d`) into `master`, and testing on real Pi hardware.
+- **3D on the kiosk.** The kiosk screen runs the browser on the Pi itself, so the 3D view's performance there depends on the Pi model (a Pi 5 should be fine; a Pi 4 may be jerky at full HD). This hasn't been measured. Phones and tablets render 3D on their own hardware.
+- **The PIN is client-side only.** It doesn't stop anyone who reaches the controller's network and calls the API directly.
+- **Not yet done:** the Vercel deploy and merging `ui-redesign` into `master`.
 
 ## Third-party code and assets
 
@@ -384,6 +399,7 @@ msedge --headless=new --disable-gpu --hide-scrollbars --run-all-compositor-stage
 |---|---|---|
 | gifenc 1.0.3 (Matt DesLauriers) | MIT | `static/vendor/gifenc.esm.js` + `gifenc.LICENSE.md` |
 | three.js 0.160 + OrbitControls | MIT | `static/vendor/three/` + `LICENSE` |
+| QR Code Generator (Kazuhiko Arase) | MIT | `static/vendor/qrcode.js` + `qrcode.LICENSE.md` |
 | Rubik | SIL OFL | Google Fonts (loaded from the web) |
 | HOTA wordmark | HOTA's trademark | `static/hota-logo.svg`, from hota.com.au. For HOTA's own controller; check with HOTA before using it publicly. |
 | Elevation sheets | ARM Architecture / HOTA | `data/venue_assets/hota/`, the source for all traced geometry |
@@ -391,7 +407,22 @@ msedge --headless=new --disable-gpu --hide-scrollbars --run-all-compositor-stage
 ## Rebuilding on a new machine
 
 1. Install Git, Python 3.10+, Node (only for the syntax checks) and the GitHub CLI (`winget install GitHub.cli`, then `gh auth login`).
-2. `gh repo clone zacpetersengit/hota-gallery`, then `git switch ui-redesign` (or `ui-redesign-3d`).
+2. Clone the project from **Patrick's repo** and switch to the main line:
+
+```bash
+gh repo clone patrickslavin90-stack/hota-gallery
+cd hota-gallery
+git switch ui-redesign
+```
+
+To contribute without push access, add your fork as a remote, push a branch there, then open a pull request (or ask Patrick to merge it):
+
+```bash
+git remote add zac https://github.com/zacpetersengit/hota-gallery.git
+git switch -c my-change
+git push -u zac my-change
+```
+
 3. Make a safe copy of the config: copy `data/config.json`, set `"bind_ip": "127.0.0.1"`, then run `python -m hota_gallery serve --config <copy> --host 127.0.0.1 --port 8765`.
 4. Open http://127.0.0.1:8765/ (the old UI is at `/static/legacy.html`).
 5. Before committing UI changes, run `python tools/check_ui_api.py http://127.0.0.1:8765`.
