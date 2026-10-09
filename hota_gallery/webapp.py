@@ -16,6 +16,7 @@ import json
 import logging
 import mimetypes
 import re
+import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -35,6 +36,33 @@ def _safe_filename(name: str) -> str:
     """Layout name -> a filesystem-safe stem - layout names are free text
     (spaces, punctuation), filenames shouldn't be."""
     return re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_") or "layout"
+
+
+def _wifi_ip() -> Optional[str]:
+    """This Pi's WiFi interface address, for telling a phone where to find
+    the web UI - deliberately NOT bind_ip, which stays pinned to the wired
+    Art-Net interface on purpose (a dual-NIC setup: Art-Net output must
+    never drift onto the venue WiFi, but staff reaching the UI from a
+    phone are only ever on that WiFi, never on the isolated lighting
+    network). Shells out to `ip` rather than adding a dependency just for
+    interface enumeration - every Pi has iproute2. Returns None off the
+    real Pi (no wlan* interface, or `ip` isn't there at all) rather than
+    raising, since this is a nice-to-have for one dialog, not core
+    behaviour."""
+    try:
+        out = subprocess.run(
+            ["ip", "-4", "-o", "addr", "show"], capture_output=True, text=True, timeout=2,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) < 2 or not parts[1].startswith("wl"):
+            continue
+        for i, token in enumerate(parts):
+            if token == "inet" and i + 1 < len(parts):
+                return parts[i + 1].split("/")[0]
+    return None
 
 
 class Store:
@@ -78,6 +106,13 @@ class Store:
         return {
             "configured_bind_ip": configured_ip,
             "effective_bind_ip": effective_ip,
+            # Not an Art-Net field - it rides along on this same endpoint
+            # because the frontend already calls it, and "what address
+            # reaches this device" is the same family of question as
+            # bind_ip. See _wifi_ip's docstring for why it's not just
+            # effective_bind_ip: that one is deliberately the *wired*
+            # interface, which a phone on the venue WiFi can't reach at all.
+            "wifi_ip": _wifi_ip(),
             "artnet_port": ARTNET_PORT,
             "broadcast_address": "255.255.255.255",
             "web_port": cfg["web_port"],

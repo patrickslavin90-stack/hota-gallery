@@ -1542,13 +1542,18 @@
   // way to a network address - but the kiosk display loads this page via
   // http://localhost:8080/ (deliberately, so it never breaks if the Pi's
   // IP changes), and "localhost" in a QR code just points a phone's camera
-  // at the phone itself. Ask the controller for its real address instead
-  // whenever we're being viewed through localhost.
+  // at the phone itself. Ask the controller for a real address instead
+  // whenever we're being viewed through localhost - specifically its WiFi
+  // address, not effective_bind_ip: this is a dual-NIC Pi, bind_ip is
+  // pinned to the *wired* Art-Net interface on purpose, and a phone on
+  // the venue WiFi can't reach that network at all. Fall back to
+  // effective_bind_ip only if there's genuinely no WiFi interface up.
   async function shareableUrl() {
     if (!["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return location.origin + "/";
     try {
       const status = await api.artnetStatus();
-      if (status && status.effective_bind_ip) return `http://${status.effective_bind_ip}:${status.web_port}/`;
+      const ip = status && (status.wifi_ip || status.effective_bind_ip);
+      if (ip) return `http://${ip}:${status.web_port}/`;
     } catch { /* fall through */ }
     return location.origin + "/"; // best effort - still beats throwing
   }
