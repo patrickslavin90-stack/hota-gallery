@@ -12,19 +12,25 @@ not a different architecture.
 
 from __future__ import annotations
 
+import copy
+import datetime
+import io
 import json
 import logging
 import mimetypes
 import re
+import subprocess
 import threading
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from .artnet import ARTNET_PORT, discover_nodes
-from .config import ConfigError, save_config, validate_config
+from .config import ConfigError, off_look, save_config, validate_config
 from .engine import Engine
+from .scheduler import active_entry
 
 log = logging.getLogger("hota_gallery")
 
@@ -35,6 +41,33 @@ def _safe_filename(name: str) -> str:
     """Layout name -> a filesystem-safe stem - layout names are free text
     (spaces, punctuation), filenames shouldn't be."""
     return re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_") or "layout"
+
+
+def _wifi_ip() -> Optional[str]:
+    """This Pi's WiFi interface address, for telling a phone where to find
+    the web UI - deliberately NOT bind_ip, which stays pinned to the wired
+    Art-Net interface on purpose (a dual-NIC setup: Art-Net output must
+    never drift onto the venue WiFi, but staff reaching the UI from a
+    phone are only ever on that WiFi, never on the isolated lighting
+    network). Shells out to `ip` rather than adding a dependency just for
+    interface enumeration - every Pi has iproute2. Returns None off the
+    real Pi (no wlan* interface, or `ip` isn't there at all) rather than
+    raising, since this is a nice-to-have for one dialog, not core
+    behaviour."""
+    try:
+        out = subprocess.run(
+            ["ip", "-4", "-o", "addr", "show"], capture_output=True, text=True, timeout=2,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) < 2 or not parts[1].startswith("wl"):
+            continue
+        for i, token in enumerate(parts):
+            if token == "inet" and i + 1 < len(parts):
+                return parts[i + 1].split("/")[0]
+    return None
 
 
 class Store:
@@ -78,6 +111,13 @@ class Store:
         return {
             "configured_bind_ip": configured_ip,
             "effective_bind_ip": effective_ip,
+            # Not an Art-Net field - it rides along on this same endpoint
+            # because the frontend already calls it, and "what address
+            # reaches this device" is the same family of question as
+            # bind_ip. See _wifi_ip's docstring for why it's not just
+            # effective_bind_ip: that one is deliberately the *wired*
+            # interface, which a phone on the venue WiFi can't reach at all.
+            "wifi_ip": _wifi_ip(),
             "artnet_port": ARTNET_PORT,
             "broadcast_address": "255.255.255.255",
             "web_port": cfg["web_port"],
@@ -88,7 +128,7 @@ class Store:
     def discover_artnet_nodes(self) -> List[Dict[str, Any]]:
         cfg = self.engine.cfg
         bind_ip = cfg.get("bind_ip") or Engine._auto_bind_ip()
-        return discover_nodes(bind_ip, timeout=2.0)
+        return discover_nodes(bind_ip, timeout=3.0)
 
     def replace_config(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
@@ -105,6 +145,19 @@ class Store:
             cfg = dict(self.engine.cfg)
             current_look = dict(cfg["current_look"])
             current_look["default"] = look
+            cfg["current_look"] = current_look
+            validated = validate_config(cfg)
+            save_config(self.config_path, validated)
+            self.engine.set_look(validated["current_look"])
+            return validated["current_look"]
+
+    def set_current_look(self, current_look: Dict[str, Any]) -> Dict[str, Any]:
+        """Replace the whole current_look (default + every per-fixture
+        override) in one shot - the Live tab's "Go live" button, sending a
+        blind-programmed look across in a single atomic write instead of
+        one putLook plus one putSelection per distinct override look."""
+        with self._lock:
+            cfg = dict(self.engine.cfg)
             cfg["current_look"] = current_look
             validated = validate_config(cfg)
             save_config(self.config_path, validated)
@@ -272,6 +325,78 @@ class Store:
             return None
         return path
 
+    def clear_to_schedule(self) -> Dict[str, Any]:
+        """The Live tab's "Clear" button: drop every manual override -
+        the default look and every per-fixture selection look - and show
+        whatever the schedule itself says should be playing right now,
+        immediately. Same end state the background Scheduler would
+        eventually converge to on its own, but staff don't have to wait
+        for its next tick (or its 60s dark-revert safety net, which only
+        ever fires when an override leaves something dark - this covers
+        the general "undo whatever I was just testing" case instead).
+        Reuses scheduler.active_entry so this always agrees with what the
+        real scheduler would pick (priority entries included), rather
+        than a second copy of that logic drifting out of sync over time."""
+        with self._lock:
+            cfg = dict(self.engine.cfg)
+            now = datetime.datetime.now()
+            schedule = cfg.get("schedule", [])
+            default_entry = active_entry(schedule, None, now)
+            default_look = copy.deepcopy(default_entry["look"]) if default_entry else off_look()
+
+            overrides: Dict[str, Any] = {}
+            for zone in {e.get("zone") for e in schedule if e.get("zone")}:
+                entry = active_entry(schedule, zone, now)
+                if not entry:
+                    continue
+                for fx in cfg["fixtures"]:
+                    if fx.get("zone") == zone:
+                        overrides[f"{fx['universe']}:{fx['address']}"] = copy.deepcopy(entry["look"])
+
+            cfg["current_look"] = {"default": default_look, "fixtures": overrides}
+            validated = validate_config(cfg)
+            save_config(self.config_path, validated)
+            self.engine.set_look(validated["current_look"])
+            return validated["current_look"]
+
+    def create_backup(self) -> bytes:
+        """Everything that's irreplaceable about *this venue's* setup, in
+        one zip - config.json (fixtures, zones, schedule, presets, current
+        look, layouts) plus any layout background reference images. The
+        application code isn't included: that's already safe in git, and
+        bundling it here would conflate "this install's software version"
+        with "this venue's data", which is the thing actually at risk of
+        being lost for good if the Pi's SD card ever dies."""
+        with self._lock:
+            cfg = self.engine.cfg
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("config.json", json.dumps(cfg, indent=2))
+                if self.backgrounds_dir.is_dir():
+                    for path in sorted(self.backgrounds_dir.iterdir()):
+                        if path.is_file():
+                            zf.write(path, f"backgrounds/{path.name}")
+                info = (
+                    f"HOTA Gallery lighting - backup\n"
+                    f"Device:    {cfg.get('device_name') or '(unnamed)'}\n"
+                    f"Made:      {datetime.datetime.now().isoformat(timespec='seconds')}\n"
+                    f"Fixtures:  {len(cfg['fixtures'])}\n"
+                    f"Zones:     {len(cfg['zones'])}\n"
+                    f"Schedule:  {len(cfg['schedule'])} entries\n"
+                    f"Presets:   {len(cfg['presets'])}\n"
+                    f"Layouts:   {len(cfg['layouts'])}\n"
+                    f"\n"
+                    f"To restore: Settings > Configuration file > Import config.json...\n"
+                    f"on the controller, and pick config.json from this zip. The\n"
+                    f"backgrounds/ images (if any) are only the layout editor's\n"
+                    f"reference pictures, not anything the lights themselves read -\n"
+                    f"put a file back at the same name under its data directory's\n"
+                    f"backgrounds/ folder only if you need the layout editor's\n"
+                    f"picture back too.\n"
+                )
+                zf.writestr("backup-info.txt", info)
+            return buf.getvalue()
+
 
 class Handler(BaseHTTPRequestHandler):
     store: Store  # set on the class by create_server before use
@@ -334,6 +459,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, self.store.get_config()["clock_chime"])
         elif self.path == "/api/layouts":
             self._send_json(200, self.store.get_config()["layouts"])
+        elif self.path == "/api/backup":
+            body = self.store.create_backup()
+            stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            device = re.sub(r"[^A-Za-z0-9_-]+", "_", self.store.get_config().get("device_name") or "hota-gallery").strip("_") or "hota-gallery"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Disposition", f'attachment; filename="{device}-backup-{stamp}.zip"')
+            self.end_headers()
+            self.wfile.write(body)
         elif self.path == "/api/artnet/status":
             self._send_json(200, self.store.artnet_status())
         elif self.path == "/api/artnet/discover":
@@ -390,6 +525,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, validated)
             elif self.path == "/api/look":
                 look = self.store.set_default_look(body)
+                self._send_json(200, look)
+            elif self.path == "/api/clear":
+                look = self.store.clear_to_schedule()
+                self._send_json(200, look)
+            elif self.path == "/api/look/full":
+                look = self.store.set_current_look(body)
                 self._send_json(200, look)
             elif self.path == "/api/look/selection":
                 look = self.store.set_fixture_looks(body["fixtures"], body.get("look"))
