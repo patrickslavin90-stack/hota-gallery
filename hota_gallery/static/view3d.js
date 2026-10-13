@@ -97,6 +97,43 @@
     return { group, roofZ };
   }
 
+  // Outdoor stage (VOS): no traced drawings, just every fixture's real 3D
+  // position (static/vos3d.json, from tools/import_vos.py). The facade
+  // itself is a faint placeholder skin from the ground up to the strip
+  // line, following the plan line the dots give - until there's a model of
+  // the stage shell to load instead.
+  function stageKey(f) { return `${f.universe}:${f.address}`; }
+  function buildStage(scene, v3d, fixtures) {
+    const group = new THREE.Group();
+    const toV = p => [p[0] / 1000, p[2] / 1000, -p[1] / 1000];
+    // Skin: strip pixels sorted across the stage give the top edge.
+    const edge = fixtures.filter(f => /^Strip/.test(f.zone || "")).map(f => v3d.fixtures[stageKey(f)]).filter(Boolean).sort((a, b) => a[0] - b[0]);
+    const pos = [];
+    for (let i = 0; i < edge.length - 1; i++) {
+      const a = edge[i], b = edge[i + 1];
+      const a0 = toV([a[0], a[1], 0]), a1 = toV(a), b0 = toV([b[0], b[1], 0]), b1 = toV(b);
+      pos.push(...a0, ...b0, ...b1, ...a0, ...b1, ...a1);
+    }
+    const skin = new THREE.BufferGeometry();
+    skin.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    group.add(new THREE.Mesh(skin, new THREE.MeshBasicMaterial({ color: 0x2a2727, side: THREE.DoubleSide, transparent: true, opacity: 0.55, depthWrite: false })));
+    // Plan line on the ground.
+    const plan = new THREE.BufferGeometry();
+    plan.setAttribute("position", new THREE.Float32BufferAttribute(v3d.plan.flatMap(([x, y]) => toV([x, y, 10])), 3));
+    group.add(new THREE.Line(plan, new THREE.LineBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.35 })));
+    const e = v3d.extent;
+    const cx = (e.min_x + e.max_x) / 2000, cz = -(Math.min(...v3d.plan.map(p => p[1])) + Math.max(...v3d.plan.map(p => p[1]))) / 2000;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshBasicMaterial({ color: 0x0b0a0a }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(cx, -0.02, cz);
+    group.add(ground);
+    const grid = new THREE.GridHelper(160, 32, 0x2a2828, 0x1d1c1c);
+    grid.position.set(cx, 0, cz);
+    group.add(grid);
+    scene.add(group);
+    const height = e.max_z / 1000;
+    return { toV, centre: new THREE.Vector3(cx, height * 0.45, cz), radius: 0.5 * Math.hypot((e.max_x - e.min_x) / 1000, height) };
+  }
+
   // Glow sprites: soft core + wide halo, additive, depth-tested (the
   // building hides lights round the back) but not depth-writing.
   function glowMaterial(pixelRatio) {
@@ -146,10 +183,17 @@
     controls.maxPolarAngle = Math.PI * 0.495; // stay above ground
     controls.minDistance = 8; controls.maxDistance = 220;
 
-    const M = makeMapper(src.elev, src.b3d);
-    const { roofZ } = buildBuilding(scene, src.elev, src.b3d, M);
-    const fp = src.b3d.footprint;
-    const centre = new THREE.Vector3((fp.east + fp.west) / 2000, roofZ * 0.45, -(fp.north + fp.south) / 2000);
+    const stage = src.v3d ? buildStage(scene, src.v3d, src.getFixtures()) : null;
+    let M = null, roofZ = 0, fp = null, centre;
+    if (stage) {
+      centre = stage.centre;
+      renderer.domElement.setAttribute("aria-label", "3D view of the outdoor stage facade with live lights. Drag to orbit, scroll to zoom.");
+    } else {
+      M = makeMapper(src.elev, src.b3d);
+      ({ roofZ } = buildBuilding(scene, src.elev, src.b3d, M));
+      fp = src.b3d.footprint;
+      centre = new THREE.Vector3((fp.east + fp.west) / 2000, roofZ * 0.45, -(fp.north + fp.south) / 2000);
+    }
 
     // Light samples: every LED, plus extra samples along strips so tape
     // reads as continuous. Each sample blends two LEDs of one fixture.
@@ -161,6 +205,15 @@
       samples = [];
       const pos = [], size = [];
       fixtures.forEach((f, fi) => {
+        if (stage) {
+          // One pixel per fixture; dots drawn bigger than strip pixels.
+          const p = src.v3d.fixtures[stageKey(f)];
+          if (!p) return;
+          for (let i = 0; i < f.led_count; i++) {
+            samples.push({ fi, i0: i, i1: i, t: 0 }); pos.push(...stage.toV(p)); size.push(/dots$/i.test(f.zone || "") ? 2600 : 900);
+          }
+          return;
+        }
         const p = layout && layout.fixtures[`${f.universe}:${f.address}`];
         if (!p) return;
         const w = M.wallAt((p[0][0] + p[1][0]) / 2);
@@ -212,17 +265,19 @@
     }
 
     // Camera presets, named from where you stand.
-    const VIEWS = {
-      "North-east": [1, 1], "South-east": [1, -1], "South-west": [-1, -1], "North-west": [-1, 1], "Above": null,
-    };
+    // Gallery: [east, north] unit direction. Stage: the audience is at +Y
+    // (three.js -z), so "Front" looks straight up the stage.
+    const VIEWS = stage
+      ? { "Front": [0, 1], "Front left": [-0.75, 0.75], "Front right": [0.75, 0.75], "Above": null }
+      : { "North-east": [1, 1], "South-east": [1, -1], "South-west": [-1, -1], "North-west": [-1, 1], "Above": null };
     // Distance that fits the whole building (bounding sphere) in the
     // narrower of the two fields of view, so presets work at any window shape.
-    const radius = 0.5 * Math.hypot((fp.east - fp.west) / 1000, (fp.north - fp.south) / 1000, roofZ + 4.5);
+    const radius = stage ? stage.radius : 0.5 * Math.hypot((fp.east - fp.west) / 1000, (fp.north - fp.south) / 1000, roofZ + 4.5);
     function fitDistance() {
       const v = (camera.fov * Math.PI) / 180, hf = 2 * Math.atan(Math.tan(v / 2) * camera.aspect);
       return (radius / Math.sin(Math.min(v, hf) / 2)) * 1.08;
     }
-    let lastView = "North-east";
+    let lastView = Object.keys(VIEWS)[0];
     function setView(name, instant) {
       lastView = name;
       const d = fitDistance(), v = VIEWS[name];
@@ -256,7 +311,7 @@
       renderer.render(scene, camera);
       raf = requestAnimationFrame(loop);
     }
-    setView("North-east", true);
+    setView(lastView, true);
     return {
       views: Object.keys(VIEWS),
       setView,

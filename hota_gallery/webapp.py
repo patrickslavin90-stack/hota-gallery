@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from .artnet import ARTNET_PORT, discover_nodes
+from .sacn import SACN_PORT, multicast_group
 from .config import ConfigError, off_look, save_config, validate_config
 from .engine import Engine
 from .scheduler import active_entry
@@ -108,6 +109,9 @@ class Store:
             entry["channel_count"] += fx["led_count"] * channels_per_led
             entry["max_address"] = max(entry["max_address"], fx["address"] + fx["led_count"] * channels_per_led)
 
+        for entry in by_universe.values():
+            entry["sacn_group"] = multicast_group(entry["universe"] + 1)
+
         return {
             "configured_bind_ip": configured_ip,
             "effective_bind_ip": effective_ip,
@@ -120,6 +124,12 @@ class Store:
             "wifi_ip": _wifi_ip(),
             "artnet_port": ARTNET_PORT,
             "broadcast_address": "255.255.255.255",
+            # Outdoor stage: sACN instead of Art-Net. Wire universe is the
+            # stored one + 1 (see sacn.py), the same number the UI shows.
+            "protocol": cfg.get("protocol", "artnet"),
+            "sacn_port": SACN_PORT,
+            "sacn_priority": cfg.get("sacn_priority", 100),
+            "sacn_destinations": cfg.get("sacn_destinations", []),
             "web_port": cfg["web_port"],
             "fps": cfg["fps"],
             "universes": sorted(by_universe.values(), key=lambda e: e["universe"]),

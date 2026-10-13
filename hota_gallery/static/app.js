@@ -251,14 +251,33 @@
     toast(errText(e), true);
     return;
   }
-  try { elev = await (await fetch("static/elevations.json", { cache: "no-store" })).json(); } catch { elev = null; }
-  // Fixture positions on the elevations, shipped with the UI. Used when the
-  // controller's config doesn't have its own "Building" layout yet - it gets
-  // saved there the first time someone moves fixtures in it.
-  let b3d = null; // rough 3D massing derived from the elevation grids (tools/build_3d.py)
-  try { b3d = await (await fetch("static/building3d.json", { cache: "no-store" })).json(); } catch { b3d = null; }
+  // Which site this controller drives. The gallery has traced elevations
+  // and a folded 3D massing; the outdoor stage (VOS) has its MA layout in
+  // the config and real 3D positions from tools/import_vos.py.
+  const venue = cfg.venue || "gallery";
+  const VENUE = {
+    gallery: { title: "Gallery façade lighting", dots: "Dishes", staff: "gallery staff", wifi: "gallery Wi-Fi", led: [22, 38] },
+    vos: { title: "Outdoor stage lighting", dots: "Dots", staff: "HOTA staff", wifi: "venue Wi-Fi", led: [3, 9] },
+  }[venue];
+  const getJson = async url => { try { return await (await fetch(url, { cache: "no-store" })).json(); } catch { return null; } };
+  let b3d = null; // gallery: rough 3D massing derived from the elevation grids (tools/build_3d.py)
+  let v3d = null; // outdoor stage: per-fixture 3D positions (tools/import_vos.py)
+  // Gallery fixture positions on the elevations, shipped with the UI. Used
+  // when the controller's config doesn't have its own "Building" layout
+  // yet - it gets saved there the first time someone moves fixtures in it.
   let builtinBuilding = null;
-  try { builtinBuilding = await (await fetch("static/building-layout.json", { cache: "no-store" })).json(); } catch { builtinBuilding = null; }
+  if (venue === "gallery") {
+    [elev, b3d, builtinBuilding] = await Promise.all(["static/elevations.json", "static/building3d.json", "static/building-layout.json"].map(getJson));
+  } else {
+    v3d = await getJson("static/vos3d.json");
+  }
+  document.querySelector(".brand > span").textContent = VENUE.title;
+  document.title = venue === "vos" ? "HOTA Outdoor Stage Lighting" : document.title;
+  // sACN has no poll/reply like ArtPoll, so on the outdoor stage there's
+  // nothing to scan: no Lights pill, and the Settings card says what's sent.
+  const isSacn = cfg.protocol === "sacn";
+  // A dish (gallery) or dot (outdoor stage): drawn bigger than strip pixels.
+  const isDot = f => venue === "vos" ? /dots$/i.test(f.zone || "") : f.zone === "dishes" || f.led_type === "RGB";
   const allLayouts = () => {
     const ls = cfg.layouts || [];
     return elev && builtinBuilding && !ls.some(l => l.name === "Building") ? [builtinBuilding, ...ls] : ls;
@@ -315,7 +334,7 @@
       const errSlot = h("div", { class: "alert-slot" });
       const form = h("form", { method: "dialog", class: "dlg-body" },
         h("h3", { class: "dlg-title", id: "dlgTitle", text: "Enter PIN" }),
-        h("p", { class: "dlg-msg", text: "Ask gallery staff for the access PIN to control the lights remotely." }),
+        h("p", { class: "dlg-msg", text: `Ask ${VENUE.staff} for the access PIN to control the lights remotely.` }),
         field, errSlot,
         h("div", { class: "dlg-actions" }, h("button", { type: "submit", class: "btn primary", text: "Unlock" })));
       const dlg = h("dialog", { class: "dlg", "aria-labelledby": "dlgTitle" }, form);
@@ -448,7 +467,7 @@
       pick.addEventListener("input", () => { Object.assign(colour, fromHex(pick.value, colour.w || 0)); changed(); });
       w.addEventListener("change", () => { colour.w = clamp(Math.round(+w.value || 0), 0, 255); w.value = colour.w; changed(); });
       return h("div", { class: "field" }, h("span", { class: "lbl", text: label }),
-        h("div", { class: "colour-in" }, pick, h("span", { class: "hint", style: "margin:0", text: "W" }), w,
+        h("div", { class: "colour-in" }, pick, ...(venue === "vos" ? [] : [h("span", { class: "hint", style: "margin:0", text: "W" }), w]),
           onDelete ? h("button", { type: "button", class: "btn sm icon ghost", "aria-label": `Remove ${label}`, onclick: onDelete, text: "×" }) : null));
     }
     function chips(options, current, onPick) {
@@ -771,7 +790,7 @@
       const [[x1, y1], [x2, y2]] = pts;
       for (let i = 0; i < n; i++) {
         const t = n > 1 ? i / (n - 1) : 0;
-        leds.push({ key, fi, i, x: sx(x1 + (x2 - x1) * t), y: sy(y1 + (y2 - y1) * t), dish: f.zone === "dishes" || f.led_type === "RGB" });
+        leds.push({ key, fi, i, x: sx(x1 + (x2 - x1) * t), y: sy(y1 + (y2 - y1) * t), dish: isDot(f) });
       }
     }
   }
@@ -793,8 +812,8 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
     const s = live.cam.s;
-    const r = clamp(s * 22, 1.6, 5);            // LED dot radius
-    const rDish = clamp(s * 38, 3, 9);
+    const r = clamp(s * VENUE.led[0], 1.6, 5);            // LED dot radius
+    const rDish = clamp(s * VENUE.led[1], 3, 9);
 
     // Selection underlay.
     if (live.selection.size) {
@@ -1025,7 +1044,7 @@
       $("#toggle3d").textContent = "Loading 3D…";
       try {
         view3d = await HotaView3D.create($("#view3d"), {
-          elev, b3d,
+          elev, b3d, v3d,
           getLayout: () => allLayouts().find(l => l.name === "Building"),
           getFixtures: () => cfg.fixtures,
           getPreview: () => live.preview,
@@ -1067,8 +1086,10 @@
     layoutSelect.replaceChildren(...layouts.map(l => h("option", { value: l.name, text: l.name, selected: l.name === live.layoutName })));
     const seg = $("#viewSeg");
     seg.hidden = !isBuilding() || view3dOn;
-    $("#toggle3d").hidden = !(isBuilding() && b3d && window.HotaView3D);
-    if (view3dOn && !isBuilding()) setView3d(false);
+    const can3d = window.HotaView3D && (venue === "vos" ? !!v3d : isBuilding() && b3d);
+    $("#toggle3d").hidden = !can3d;
+    $("#toggle3d").title = venue === "vos" ? "Rotate around the outdoor stage facade in 3D" : "Rotate around a rough 3D model of the gallery";
+    if (view3dOn && !can3d) setView3d(false);
     if (isBuilding()) {
       seg.replaceChildren(
         h("button", { type: "button", "data-view": "all", text: "All", onclick: () => fitView("all") }),
@@ -1196,24 +1217,25 @@
   let selGroups = [];
   function renderSelectionTools() {
     const vis = visibleKeys();
-    const strips = vis.filter(k => fx(k).led_type === "RGBW");
-    const dishes = vis.filter(k => fx(k).led_type === "RGB");
+    const strips = vis.filter(k => !isDot(fx(k)));
+    const dishes = vis.filter(k => isDot(fx(k)));
     selGroups = [
       { el: $("#selQuick"), chips: [
         ["All", vis],
         ["Strips", strips],
-        ["Dishes", dishes],
+        [VENUE.dots, dishes],
         ...zoneNames.filter(z => !["strips", "dishes"].includes(z)).map(z => [z, vis.filter(k => fx(k).zone === z)]),
       ] },
       { el: $("#selWalls"), chips: elev ? elev.elevations.map(e => [e.name, vis.filter(k => wallOf(k) === e.name)]) : [] },
       { el: $("#selMore"), chips: [
-        ["Strip corners", strips.filter(k => fx(k).led_count === 1)],
+        ...(venue === "gallery" ? [["Strip corners", strips.filter(k => fx(k).led_count === 1)]] : []),
         ["Strips, odd", strips.filter((_, i) => i % 2 === 0)],
         ["Strips, even", strips.filter((_, i) => i % 2 === 1)],
-        ["Dishes, odd", dishes.filter((_, i) => i % 2 === 0)],
-        ["Dishes, even", dishes.filter((_, i) => i % 2 === 1)],
+        [`${VENUE.dots}, odd`, dishes.filter((_, i) => i % 2 === 0)],
+        [`${VENUE.dots}, even`, dishes.filter((_, i) => i % 2 === 1)],
       ] },
     ];
+    $("#selWalls").previousElementSibling.hidden = $("#selWalls").hidden = !elev;
     for (const g of selGroups) {
       g.chips = g.chips.map(([label, keys]) => ({ label, keys, btn: null }));
       g.el.replaceChildren(...g.chips.map(c => (c.btn = h("button", { type: "button", text: c.label, "aria-pressed": false, disabled: !c.keys.length,
@@ -1705,7 +1727,7 @@
       h("div", { class: "body" },
         api.kind === "controller"
           ? [
-            h("p", { class: "hint", style: "margin-top:0", text: "Scan this from a phone on the gallery Wi-Fi to open the live control - handy for checking the facade from outside." }),
+            h("p", { class: "hint", style: "margin-top:0", text: `Scan this from a phone on the ${VENUE.wifi} to open the live control - handy for checking the facade from outside.` }),
             h("button", { type: "button", class: "btn primary", text: "Scan to connect", onclick: openRemoteAccessDialog }),
             h("div", { class: "field", style: "margin-top:14px" }, h("label", { for: "dPin", text: "Access PIN" }), pin),
             h("p", { class: "hint", text: "Asked once per browser for anyone connecting remotely - this kiosk screen is never asked. This is a speed bump, not real security: it doesn't stop someone who reaches the controller's network directly." }),
@@ -1770,7 +1792,7 @@
       h("p", { class: "dlg-msg", text: "Open your phone's camera and point it at this code to load the remote control." }),
       h("div", { style: "display:flex;justify-content:center;margin:4px 0" }, buildQrSvg(url, 4)),
       h("div", { class: "qr-url", text: url }),
-      h("p", { class: "hint", style: "text-align:center;margin:0 0 4px" , text: "Works on the gallery Wi-Fi only" }),
+      h("p", { class: "hint", style: "text-align:center;margin:0 0 4px" , text: `Works on the ${VENUE.wifi} only` }),
       h("div", { class: "dlg-actions" }, copyBtn, h("button", { type: "submit", class: "btn primary", text: "Done" })));
     const dlg = h("dialog", { class: "dlg", "aria-labelledby": "dlgTitle" }, form);
     const close = () => { dlg.close(); dlg.remove(); };
@@ -1834,7 +1856,7 @@
           h("div", { class: "field" }, h("label", { for: "dName", text: "Device name" }), name),
           h("div", { class: "field" }, h("label", { for: "dFps", text: "Output rate" }), h("div", { class: "row" }, fps, h("span", { class: "hint", style: "margin:0", text: "frames per second" }))),
           h("div", { class: "field" }, h("label", { for: "dBind", text: "Network interface" }), bind),
-          h("p", { class: "hint", text: "The address of the network card Art-Net goes out on. Leave empty to pick automatically." }),
+          h("p", { class: "hint", text: `The address of the network card ${isSacn ? "sACN" : "Art-Net"} goes out on. Leave empty to pick automatically.` }),
           h("div", { class: "field" }, h("label", { for: "dPort", text: "Web port" }), h("div", { class: "row" }, port)),
           h("p", { class: "hint", text: "The port this page is served on. A new port takes effect when the controller restarts." })),
         h("dl", { class: "kv", style: "margin:7px 0 0" },
@@ -1886,7 +1908,7 @@
   // Runs on load (controller only), every 5 minutes, and on "Scan again".
   const lightsEl = $("#lights");
   function updateLights() {
-    if (api.kind !== "controller") { lightsEl.hidden = true; return; }
+    if (api.kind !== "controller" || isSacn) { lightsEl.hidden = true; return; }
     lightsEl.hidden = false;
     if (!artnetScan) { lightsEl.dataset.state = "checking"; lightsEl.querySelector("span").textContent = "Checking lights…"; lightsEl.title = "Looking for Art-Net nodes on the network."; return; }
     const unis = patchUniverses().map(u => u.universe);
@@ -1898,7 +1920,7 @@
   }
   lightsEl.addEventListener("click", () => showTab("settings"));
   async function scanArtnet() {
-    if (artnetScanning || api.kind !== "controller") return null;
+    if (artnetScanning || api.kind !== "controller" || isSacn) return null;
     artnetScanning = true; updateLights();
     try {
       const nodes = await api.artnetDiscover();
@@ -1923,7 +1945,40 @@
     return [...by.values()].sort((a, b) => a.universe - b.universe);
   }
 
+  async function renderSacn() {
+    const card = $("#artnetCard");
+    const alertSlot = h("div", { class: "alert-slot" });
+    const body = h("div", { class: "body" }, h("p", { class: "hint", style: "margin:0", text: "Loading…" }));
+    card.replaceChildren(h("header", null, h("h3", { text: "sACN output" })), alertSlot, body);
+    let st = null;
+    if (api.kind === "controller") {
+      try { st = await api.artnetStatus(); } catch (e) { slideAlert(alertSlot, "Couldn't read the output status", errText(e), 0); }
+    }
+    const universes = (st && st.universes) || patchUniverses();
+    // Wire universe = stored + 1, the same number shown everywhere else.
+    const group = u => `239.255.${((u + 1) >> 8) & 255}.${(u + 1) & 255}`;
+    const dests = (st ? st.sacn_destinations : cfg.sacn_destinations) || [];
+    body.replaceChildren(
+      st ? h("dl", { class: "kv" },
+        h("dt", { text: "Sending from" }), h("dd", { text: `${st.effective_bind_ip} ${st.configured_bind_ip ? "(set)" : "(automatic)"}` }),
+        h("dt", { text: "Sent to" }), h("dd", { text: `Multicast, port ${st.sacn_port}${dests.length ? `, plus unicast to ${dests.join(", ")}` : ""}` }),
+        h("dt", { text: "Priority" }), h("dd", { text: String(st.sacn_priority) }),
+        h("dt", { text: "Rate" }), h("dd", { text: `${st.fps} fps` }))
+        : h("p", { class: "hint", style: "margin:0", text: "The demo doesn't send any lighting data. On the controller, this shows where the sACN goes." }),
+      h("div", { class: "tbl-wrap", style: "margin-top:14px" }, h("table", { class: "tbl" },
+        h("thead", null, h("tr", null, ["Universe", "Multicast group", "Fixtures", "Channels", "Highest address"].map((t, i) => h("th", { text: t, class: i > 1 ? "num" : "" })))),
+        h("tbody", null, universes.map(u => h("tr", null,
+          h("td", { text: u.universe + 1 }),
+          h("td", { text: u.sacn_group || group(u.universe) }),
+          h("td", { class: "num", text: u.fixture_count }),
+          h("td", { class: "num", text: u.channel_count }),
+          h("td", { class: "num" + (u.max_address > 512 ? " err-text" : ""), text: u.max_address > 512 ? `${u.max_address} (over 512)` : u.max_address })))))),
+      h("p", { class: "hint", text: "sACN receivers don't answer a scan the way Art-Net nodes do, so this can't check that the lights are listening. Universes are numbered from 1, the same as on the console." }),
+    );
+  }
+
   async function renderArtnet() {
+    if (isSacn) return renderSacn();
     const card = $("#artnetCard");
     const alertSlot = h("div", { class: "alert-slot" });
     const summary = h("span", { class: "conn-summary" });

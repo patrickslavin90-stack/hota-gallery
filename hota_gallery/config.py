@@ -130,6 +130,15 @@ CONFIG_DEFAULTS: Dict[str, Any] = {
     "bind_ip": None,
     "web_port": 8080,
     "device_name": "",
+    # Which site this controller drives - picks the UI's drawings and 3D
+    # model. "gallery" is the HOTA Gallery facade, "vos" the outdoor stage.
+    "venue": "gallery",
+    # Output protocol: "artnet" (gallery, broadcast ArtDMX) or "sacn"
+    # (outdoor stage, E1.31 multicast - see sacn.py).
+    "protocol": "artnet",
+    "sacn_priority": 100,
+    # Extra unicast receivers for sACN, on top of multicast.
+    "sacn_destinations": [],
     # Client-side speed bump for remote (non-kiosk) connections only - not
     # real security, same philosophy as the house-lights bridge's admin
     # PIN. null/"" turns it off; the kiosk screen itself never asks.
@@ -148,6 +157,9 @@ FIXTURE_KEYS = {
     "stage", "name", "group2", "led_type", "universe", "address",
     "led_count", "channels_per_led", "rotation", "points", "zone",
 }
+
+VENUES = {"gallery", "vos"}
+PROTOCOLS = {"artnet", "sacn"}
 
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # index matches datetime.weekday()
 SCHEDULE_ENTRY_KEYS = {"name", "active_days", "start_time", "end_time", "start_date", "end_date", "look", "zone", "enabled", "priority"}
@@ -629,6 +641,18 @@ def validate_config(raw: Any) -> Dict[str, Any]:
 
     if not isinstance(cfg["device_name"], str):
         errors.append(f"device_name must be a string, got {cfg['device_name']!r}")
+
+    if cfg["venue"] not in VENUES:
+        errors.append(f"venue must be one of {sorted(VENUES)}, got {cfg['venue']!r}")
+
+    if cfg["protocol"] not in PROTOCOLS:
+        errors.append(f"protocol must be one of {sorted(PROTOCOLS)}, got {cfg['protocol']!r}")
+
+    if not isinstance(cfg["sacn_priority"], int) or isinstance(cfg["sacn_priority"], bool) or not 0 <= cfg["sacn_priority"] <= 200:
+        errors.append(f"sacn_priority must be an integer 0-200, got {cfg['sacn_priority']!r}")
+
+    if not isinstance(cfg["sacn_destinations"], list) or not all(_valid_ip(ip) for ip in cfg["sacn_destinations"]):
+        errors.append(f"sacn_destinations must be a list of IPv4 addresses, got {cfg['sacn_destinations']!r}")
 
     if cfg["remote_pin"] not in (None, "") and not (isinstance(cfg["remote_pin"], str) and cfg["remote_pin"].isdigit()):
         errors.append(f"remote_pin must be a string of digits, or null/empty to disable it, got {cfg['remote_pin']!r}")

@@ -40,7 +40,11 @@
     artnetDiscover() { return request("GET", "/api/artnet/discover"); }
   }
 
-  const STORE_KEY = "hota-gallery-demo-config-v1";
+  // The demo runs the gallery by default; ?venue=vos runs the outdoor
+  // stage instead, from its own seed and its own saved copy.
+  const DEMO_VENUE = new URLSearchParams(location.search).get("venue") === "vos" ? "vos" : "gallery";
+  const STORE_KEY = DEMO_VENUE === "vos" ? "hota-vos-demo-config-v1" : "hota-gallery-demo-config-v1";
+  const DEMO_SEED = DEMO_VENUE === "vos" ? "static/vos-demo-config.json" : "static/demo-config.json";
 
   class LocalBackend {
     constructor(seed) {
@@ -118,7 +122,7 @@
     async putBackground() { throw new ApiError("Background images need the controller - not available in the demo."); }
     backgroundUrl() { return null; }
     async artnetStatus() { return null; }
-    async artnetDiscover() { throw new ApiError("Art-Net discovery needs the controller on the gallery network."); }
+    async artnetDiscover() { throw new ApiError("Node discovery needs the controller on the lighting network."); }
     reset() { try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ } this.cfg = structuredClone(this.seed); return this._save(); }
   }
 
@@ -127,7 +131,7 @@
       const res = await fetch("/api/status", { cache: "no-store" });
       if (res.ok && (res.headers.get("content-type") || "").includes("json")) return new ControllerBackend();
     } catch { /* no controller */ }
-    const seed = await (await fetch("static/demo-config.json", { cache: "no-store" })).json();
+    const seed = await (await fetch(DEMO_SEED, { cache: "no-store" })).json();
     return new LocalBackend(seed);
   }
 

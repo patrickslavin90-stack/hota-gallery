@@ -101,7 +101,7 @@
     b.fillStyle = BG; b.fillRect(0, 0, W, H);
     // header
     b.fillStyle = "rgba(245,245,245,.55)"; b.font = `400 ${13 * u}px Rubik, sans-serif`; b.textBaseline = "middle";
-    b.fillText("Gallery Façade Lighting Concept", pad, headH / 2);
+    b.fillText(job.cfg.venue === "vos" ? "Outdoor Stage Lighting Concept" : "Gallery Façade Lighting Concept", pad, headH / 2);
     if (job.logo) {
       const lh = 20 * u, lw = lh * (job.logo.naturalWidth / job.logo.naturalHeight || 343 / 51);
       b.drawImage(job.logo, W - pad - lw, headH / 2 - lh / 2, lw, lh);
@@ -243,7 +243,7 @@
 
     const nameIn = h("input", { type: "text", class: "dlg-input", value: state.title, "aria-label": "Concept name", maxlength: 60 });
     const subIn = h("input", { type: "text", class: "dlg-input", value: state.subtitle, "aria-label": "Description line", maxlength: 90, placeholder: "Description (optional)" });
-    const viewSel = h("select", { "aria-label": "View" }, views.map(v => h("option", { value: v, text: v === "all" ? "Whole building" : `${v} elevation`, selected: v === state.view })));
+    const viewSel = h("select", { "aria-label": "View" }, views.map(v => h("option", { value: v, text: v === "all" ? (cfg.venue === "vos" ? "Whole stage" : "Whole building") : `${v} elevation`, selected: v === state.view })));
     const sizeSel = h("select", { "aria-label": "Size" }, Object.entries(SIZES).map(([k, [w, hh]]) => h("option", { value: k, text: `${SIZE_LABEL[k]}, ${w}×${hh}`, selected: k === state.size })));
     const estimate = h("p", { class: "gif-estimate" });
     const updateEstimate = () => {

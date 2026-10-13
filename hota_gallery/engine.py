@@ -39,6 +39,7 @@ import zlib
 from typing import Any, Dict, List, Optional, Tuple
 
 from .artnet import ArtNetSender
+from .sacn import SacnSender
 from .bitmaps import BITMAPS
 from .shaders import SHADERS
 
@@ -177,7 +178,7 @@ class Engine:
 
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self._sender: Optional[ArtNetSender] = None
+        self._sender: Optional[Any] = None  # ArtNetSender or SacnSender
 
     # -- live reconfiguration -------------------------------------------
 
@@ -452,7 +453,7 @@ class Engine:
         return (usec / 1_000_000.0) / 2.0 if usec > 0 else 0.0
 
     def _sender_loop(self) -> None:
-        self._sender = ArtNetSender(self.bind_ip) if self.bind_ip else ArtNetSender(self._auto_bind_ip())
+        self._sender = self._make_sender(self.bind_ip or self._auto_bind_ip())
         watchdog_period = self._watchdog_period()
         next_watchdog = 0.0
         try:
@@ -470,6 +471,20 @@ class Engine:
             if self._sender:
                 self._sender.close()
 
+    def _make_sender(self, bind_ip: str) -> Any:
+        """Art-Net for the gallery, sACN for the outdoor stage - picked by
+        the config's "protocol". Like bind_ip, a change only applies on
+        restart, since the sender owns the socket."""
+        cfg = self.cfg
+        if cfg.get("protocol") == "sacn":
+            return SacnSender(
+                bind_ip,
+                source_name=cfg.get("device_name") or "HOTA lighting",
+                priority=cfg.get("sacn_priority", 100),
+                destinations=cfg.get("sacn_destinations") or [],
+            )
+        return ArtNetSender(bind_ip)
+
     @staticmethod
     def _auto_bind_ip() -> str:
         """Best-guess local address when bind_ip isn't configured - same
@@ -485,7 +500,7 @@ class Engine:
             return s.getsockname()[0]
 
     def start_background(self) -> List[threading.Thread]:
-        t = threading.Thread(target=self._sender_loop, name="artnet-sender", daemon=True)
+        t = threading.Thread(target=self._sender_loop, name="dmx-sender", daemon=True)
         t.start()
         return [t]
 
