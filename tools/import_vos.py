@@ -2,7 +2,7 @@
 lighting department's files in data/venue_assets/vos/:
 
   vos strips and dots.mvr    patch: 609 RGB pixels (3 ch), sACN universes 11-16
-                             (+ PS LED Dot 27, missing from it - see PATCH_FIXES)
+                             (right-hand dots re-patched - see RIGHT_DOTS)
   facade strip.xml           grandMA3 layout: 2D position of every strip pixel
   facade dot.xml             grandMA3 layout: 2D position of every dot
   HOTA - VOS - LX PLAN.xml   Vectorworks export: real 3D position of the dots
@@ -58,12 +58,18 @@ ZONES = [
 ]
 
 
-# Dots missing from the MVR patch. There are 27 dots a side: the left run
-# is LED Dot 1-27 at 15.001-081, but the MVR stops the right run at PS LED
-# Dot 26, leaving 16.001-003 empty. The MA layout and Vectorworks both have
-# a 27th right-hand dot (far right, bottom), and Vectorworks addresses it
-# 7681 = 16.001. Drop an entry once the MA patch has it.
-PATCH_FIXES = {"PS LED Dot 27": 7681}
+# The dot chain runs left to right across the arch, 27 a side: LED Dot 1
+# (far left) at 15.001 up to LED Dot 27 (centre) at 15.079, then PS LED
+# Dot 1 (just right of centre) at 16.001 out to PS LED Dot 27 (far right)
+# at 16.079 - confirmed by the lighting team. The MVR has the right side
+# backwards (PS LED Dot 1 at 16.079) and is missing PS LED Dot 27, so the
+# right-hand addresses are set here rather than taken from it.
+RIGHT_DOTS = 27
+RIGHT_DOTS_START = 7681  # 16.001
+
+
+def fmt_addr(absolute: int) -> str:
+    return f"{(absolute - 1) // 512 + 1}.{(absolute - 1) % 512 + 1:03d}"
 
 
 def zone_of(name: str) -> str:
@@ -159,10 +165,13 @@ def main() -> int:
     layout = {**read_ma_layout(SRC / "facade strip.xml"), **read_ma_layout(SRC / "facade dot.xml")}
     vw_all = read_vectorworks(SRC / "HOTA - VOS - LX PLAN.xml")
     vw = {a: xyz for a, xyz in vw_all if a}
-    for name, absolute in PATCH_FIXES.items():
-        if name not in patch:
+    for n in range(1, RIGHT_DOTS + 1):
+        name = f"PS LED Dot {n}"
+        absolute = RIGHT_DOTS_START + 3 * (n - 1)
+        if patch.get(name) != absolute:
+            was = f"MVR had {fmt_addr(patch[name])}" if name in patch else "missing from the MVR"
+            print(f"patch fix: {name} at {fmt_addr(absolute)} ({was})")
             patch[name] = absolute
-            print(f"patch fix: added {name} at {(absolute - 1) // 512 + 1}.{(absolute - 1) % 512 + 1:03d} (missing from the MVR)")
 
     unplaced = sorted(set(patch) - set(layout))
     if unplaced:
@@ -181,22 +190,18 @@ def main() -> int:
         })
 
     # --- 3D ---------------------------------------------------------------
-    # Left dots: Vectorworks and the MVR agree on addresses. Right dots:
-    # Vectorworks numbers the whole run one fixture (3 ch) lower than the
-    # MVR - its 16.076 is the MVR's PS LED Dot 1 at 16.079, down to its
-    # 16.001 being PS LED Dot 26 - and leaves the 27th, at the far right,
-    # unaddressed. The MVR is what the console runs, so it sets the DMX
-    # addresses; Vectorworks only supplies where each dot is.
-    dot_pos = {}
-    for n, a in patch.items():
-        z = zone_of(n)
-        if z == "Left dots" and a in vw:
-            dot_pos[n] = vw[a]
-        elif z == "Right dots" and a - 3 in vw and n != "PS LED Dot 27":
-            dot_pos[n] = vw[a - 3]
+    # Vectorworks only supplies where each dot is - its right-hand
+    # addresses are wrong too. Left dots join by address (they agree).
+    # Right: Vectorworks has PS LED Dot n at 7759 - 3n (next to the centre
+    # at 16.076, counting down outwards), and the 27th, at the far right,
+    # unaddressed.
+    dot_pos = {n: vw[a] for n, a in patch.items() if zone_of(n) == "Left dots" and a in vw}
+    for n in range(1, RIGHT_DOTS):
+        if 7759 - 3 * n in vw:
+            dot_pos[f"PS LED Dot {n}"] = vw[7759 - 3 * n]
     far_right = [q for a, q in vw_all if a == 0 and q[0] > 0]
     if len(far_right) == 1:
-        dot_pos["PS LED Dot 27"] = far_right[0]
+        dot_pos[f"PS LED Dot {RIGHT_DOTS}"] = far_right[0]
     pairs = [(layout[n], q) for n, q in dot_pos.items()]
     c = lstsq_affine([l for l, _ in pairs], [(q[0], q[2]) for _, q in pairs])
     to_xz = lambda x, y: (c[0][0] * x + c[0][1] * y + c[0][2], c[1][0] * x + c[1][1] * y + c[1][2])
