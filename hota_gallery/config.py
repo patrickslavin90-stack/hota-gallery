@@ -114,7 +114,9 @@ from .shaders import SHADERS
 
 log = logging.getLogger("hota_gallery")
 
-LED_CHANNELS = {"RGBW": 4, "RGB": 3}
+# DRGBW: a dimmer channel, then R G B W (e.g. 5-channel "Dim RGBW" fixtures).
+# The engine holds the dimmer at full and puts the look in the colours.
+LED_CHANNELS = {"RGBW": 4, "RGB": 3, "DRGBW": 5}
 
 
 def off_look() -> Dict[str, Any]:
@@ -131,7 +133,8 @@ CONFIG_DEFAULTS: Dict[str, Any] = {
     "web_port": 8080,
     "device_name": "",
     # Which site this controller drives - picks the UI's drawings and 3D
-    # model. "gallery" is the HOTA Gallery facade, "vos" the outdoor stage.
+    # model. "gallery" is the HOTA Gallery facade, "vos" the outdoor stage,
+    # "building" the main building (plain layout, no drawings).
     "venue": "gallery",
     # Output protocol: "artnet" (gallery, broadcast ArtDMX) or "sacn"
     # (outdoor stage, E1.31 multicast - see sacn.py).
@@ -158,7 +161,7 @@ FIXTURE_KEYS = {
     "led_count", "channels_per_led", "rotation", "points", "zone",
 }
 
-VENUES = {"gallery", "vos"}
+VENUES = {"gallery", "vos", "building"}
 PROTOCOLS = {"artnet", "sacn"}
 
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # index matches datetime.weekday()

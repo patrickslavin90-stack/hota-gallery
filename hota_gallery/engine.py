@@ -118,7 +118,7 @@ class Fixture:
         self.address: int = data["address"]
         self.led_count: int = data["led_count"]
         self.led_type: str = data["led_type"]
-        self.channels_per_led: int = data.get("channels_per_led", 4 if self.led_type == "RGBW" else 3)
+        self.channels_per_led: int = data.get("channels_per_led", {"RGBW": 4, "DRGBW": 5}.get(self.led_type, 3))
         self.zone: Optional[str] = data.get("zone")
 
         (x1, y1), (x2, y2) = data["points"]
@@ -441,7 +441,10 @@ class Engine:
             buf = frames.setdefault(fx.universe, bytearray(512))
             values = bytearray()
             for c in fx_colors:
-                values += bytes(c) if fx.led_type == "RGBW" else bytes(c[:3])
+                if fx.led_type == "DRGBW":
+                    values += bytes((255,)) + bytes(c)  # dimmer at full, then RGBW
+                else:
+                    values += bytes(c) if fx.led_type == "RGBW" else bytes(c[:3])
             buf[fx.address : fx.address + len(values)] = values
         return frames
 

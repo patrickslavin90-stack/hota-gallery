@@ -2,9 +2,13 @@
 stick, plug that into the Linux PC, and run `sudo sh install-vos.sh` from
 it. See install-vos.sh for what the install does.
 
-    python tools/make_vos_installer.py [output folder]
+    python tools/make_vos_installer.py [output folder] [--config CONFIG]
 
-Default output: hota-vos-installer/ in your Downloads folder.
+Default output: hota-vos-installer/ in your Downloads folder; default config
+data/vos/config.json. The same installer sets up any of the controllers -
+e.g. the main building:
+
+    python tools/make_vos_installer.py ~/Downloads/hota-building-installer --config data/building/config.json
 """
 
 from __future__ import annotations
@@ -72,12 +76,18 @@ Logs:  journalctl -u hota-vos -f
 
 
 def main() -> int:
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.home() / "Downloads" / "hota-vos-installer"
+    args = sys.argv[1:]
+    config = ROOT / "data" / "vos" / "config.json"
+    if "--config" in args:
+        i = args.index("--config")
+        config = Path(args[i + 1]).resolve()
+        del args[i:i + 2]
+    out = Path(args[0]) if args else Path.home() / "Downloads" / "hota-vos-installer"
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
     shutil.copytree(ROOT / "hota_gallery", out / "hota_gallery", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    shutil.copy2(ROOT / "data" / "vos" / "config.json", out / "config.json")
+    shutil.copy2(config, out / "config.json")
     # Linux line endings, whatever git checked out on Windows.
     for name in ("install-vos.sh", "hota-vos.service", "vos-kiosk.sh"):
         (out / name).write_bytes((ROOT / name).read_bytes().replace(b"\r\n", b"\n"))

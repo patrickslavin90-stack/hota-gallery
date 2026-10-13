@@ -1,0 +1,438 @@
+{
+  "fps": 30.0,
+  "bind_ip": null,
+  "web_port": 8080,
+  "device_name": "building",
+  "venue": "building",
+  "protocol": "sacn",
+  "sacn_priority": 100,
+  "sacn_destinations": [],
+  "remote_pin": "1234",
+  "fixtures": [
+    {
+      "name": "Fixture 1",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 99,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    },
+    {
+      "name": "Fixture 2",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 104,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          100.0,
+          0.0
+        ],
+        [
+          100.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    },
+    {
+      "name": "Fixture 3",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 109,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          200.0,
+          0.0
+        ],
+        [
+          200.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    },
+    {
+      "name": "Fixture 4",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 114,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          300.0,
+          0.0
+        ],
+        [
+          300.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    },
+    {
+      "name": "Fixture 5",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 119,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          400.0,
+          0.0
+        ],
+        [
+          400.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    },
+    {
+      "name": "Fixture 6",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 124,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          500.0,
+          0.0
+        ],
+        [
+          500.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    },
+    {
+      "name": "Fixture 7",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 129,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          600.0,
+          0.0
+        ],
+        [
+          600.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    },
+    {
+      "name": "Fixture 8",
+      "led_type": "DRGBW",
+      "universe": 0,
+      "address": 134,
+      "led_count": 1,
+      "channels_per_led": 5,
+      "points": [
+        [
+          700.0,
+          0.0
+        ],
+        [
+          700.0,
+          0.0
+        ]
+      ],
+      "zone": null
+    }
+  ],
+  "zones": [],
+  "current_look": {
+    "default": {
+      "colour": {
+        "mode": "off"
+      },
+      "effect": {
+        "mode": "off"
+      },
+      "video": {
+        "mode": "off"
+      }
+    },
+    "fixtures": {}
+  },
+  "schedule": [],
+  "presets": [
+    {
+      "slot": 0,
+      "look": {
+        "colour": {
+          "mode": "color_cycle",
+          "colors": [
+            {
+              "r": 255,
+              "g": 0,
+              "b": 0,
+              "w": 0
+            },
+            {
+              "r": 0,
+              "g": 255,
+              "b": 0,
+              "w": 0
+            },
+            {
+              "r": 0,
+              "g": 0,
+              "b": 255,
+              "w": 0
+            }
+          ],
+          "period_s": 5
+        },
+        "effect": {
+          "mode": "shader",
+          "shader": "circle_scroll",
+          "speed": 1,
+          "n_items": 20,
+          "force": 3,
+          "force2": 5
+        },
+        "video": {
+          "mode": "bitmap",
+          "bitmap": "ring",
+          "axis": "x",
+          "period_s": 1,
+          "direction": "forward"
+        }
+      }
+    },
+    {
+      "slot": 1,
+      "name": "Chase forward",
+      "look": {
+        "colour": {
+          "mode": "solid",
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "w": 0
+          }
+        },
+        "video": {
+          "mode": "off"
+        },
+        "effect": {
+          "mode": "chase",
+          "period_s": 1.5,
+          "tail": 4,
+          "axis": "x",
+          "direction": "forward"
+        }
+      }
+    },
+    {
+      "slot": 2,
+      "name": "Chase reverse",
+      "look": {
+        "colour": {
+          "mode": "solid",
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "w": 0
+          }
+        },
+        "video": {
+          "mode": "off"
+        },
+        "effect": {
+          "mode": "chase",
+          "period_s": 1.5,
+          "tail": 4,
+          "axis": "x",
+          "direction": "reverse"
+        }
+      }
+    },
+    {
+      "slot": 3,
+      "name": "Chase bounce",
+      "look": {
+        "colour": {
+          "mode": "solid",
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "w": 0
+          }
+        },
+        "video": {
+          "mode": "off"
+        },
+        "effect": {
+          "mode": "chase",
+          "period_s": 1.2,
+          "tail": 3,
+          "axis": "x",
+          "direction": "bounce"
+        }
+      }
+    },
+    {
+      "slot": 4,
+      "name": "Sine wings",
+      "look": {
+        "colour": {
+          "mode": "solid",
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "w": 0
+          }
+        },
+        "video": {
+          "mode": "off"
+        },
+        "effect": {
+          "mode": "sine_chase",
+          "period_s": 1.2,
+          "wavelength": 8,
+          "axis": "x",
+          "direction": "wings"
+        }
+      }
+    }
+  ],
+  "layouts": [
+    {
+      "name": "Building",
+      "fixtures": {
+        "0:99": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "0:104": [
+          [
+            100.0,
+            0.0
+          ],
+          [
+            100.0,
+            0.0
+          ]
+        ],
+        "0:109": [
+          [
+            200.0,
+            0.0
+          ],
+          [
+            200.0,
+            0.0
+          ]
+        ],
+        "0:114": [
+          [
+            300.0,
+            0.0
+          ],
+          [
+            300.0,
+            0.0
+          ]
+        ],
+        "0:119": [
+          [
+            400.0,
+            0.0
+          ],
+          [
+            400.0,
+            0.0
+          ]
+        ],
+        "0:124": [
+          [
+            500.0,
+            0.0
+          ],
+          [
+            500.0,
+            0.0
+          ]
+        ],
+        "0:129": [
+          [
+            600.0,
+            0.0
+          ],
+          [
+            600.0,
+            0.0
+          ]
+        ],
+        "0:134": [
+          [
+            700.0,
+            0.0
+          ],
+          [
+            700.0,
+            0.0
+          ]
+        ]
+      }
+    }
+  ],
+  "randomizer": {
+    "enabled": false,
+    "events_per_hour": 20.0,
+    "burst_s": 6.0,
+    "targets": [],
+    "preset_slots": []
+  },
+  "clock_chime": {
+    "enabled": false,
+    "look": {
+      "colour": {
+        "mode": "off"
+      },
+      "effect": {
+        "mode": "off"
+      },
+      "video": {
+        "mode": "off"
+      }
+    },
+    "duration_s": 60.0,
+    "start_hour": 0,
+    "end_hour": 23
+  }
+}

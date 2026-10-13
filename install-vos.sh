@@ -54,7 +54,7 @@ if ! command -v systemctl >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Installing the HOTA outdoor stage lighting controller..."
+echo "Installing the HOTA lighting controller ($(python3 -c "import json; print(json.load(open('$HERE/config.json')).get('device_name') or 'unnamed')"))..."
 
 # Service user, no login, no home.
 if ! id hota-vos >/dev/null 2>&1; then
@@ -199,9 +199,9 @@ if systemctl is-active --quiet hota-vos; then
   echo "  On this PC:  http://localhost:$PORT/"
   if grep -q '"bind_ip": "127.0.0.1"' /etc/hota-vos/config.json; then
     echo
-    echo "sACN is going nowhere for now (network interface 127.0.0.1)."
-    echo "To go live: Settings -> Device -> Network interface -> this PC's address"
-    echo "on the lighting network, Save, then:  sudo systemctl restart hota-vos"
+    echo "Lighting output is going nowhere for now (network interface 127.0.0.1)."
+    echo "To go live: Settings -> sACN output -> Lighting network: pick the wired"
+    echo "port, type its address on the lighting network, Apply. No restart needed."
   fi
   echo "Logs:  journalctl -u hota-vos -f"
 else

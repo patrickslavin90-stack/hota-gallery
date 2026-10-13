@@ -258,7 +258,8 @@
   const VENUE = {
     gallery: { title: "Gallery façade lighting", dots: "Dishes", staff: "gallery staff", wifi: "gallery Wi-Fi", led: [22, 38] },
     vos: { title: "Outdoor stage lighting", dots: "Dots", staff: "HOTA staff", wifi: "venue Wi-Fi", led: [3, 9] },
-  }[venue];
+    building: { title: "Building lighting", dots: "Fixtures", staff: "HOTA staff", wifi: "venue Wi-Fi", led: [22, 38] },
+  }[venue] || { title: "Lighting", dots: "Fixtures", staff: "staff", wifi: "Wi-Fi", led: [22, 38] };
   const getJson = async url => { try { return await (await fetch(url, { cache: "no-store" })).json(); } catch { return null; } };
   let b3d = null; // gallery: rough 3D massing derived from the elevation grids (tools/build_3d.py)
   let v3d = null; // outdoor stage: per-fixture 3D positions (tools/import_vos.py)
@@ -273,12 +274,12 @@
     [v3d, vb] = await Promise.all(["static/vos3d.json", "static/vos-building.json"].map(getJson));
   }
   document.querySelector(".brand > span").textContent = VENUE.title;
-  document.title = venue === "vos" ? "HOTA Outdoor Stage Lighting" : document.title;
+  document.title = { vos: "HOTA Outdoor Stage Lighting", building: "HOTA Building Lighting" }[venue] || document.title;
   // sACN has no poll/reply like ArtPoll, so on the outdoor stage there's
   // nothing to scan: no Lights pill, and the Settings card says what's sent.
   const isSacn = cfg.protocol === "sacn";
   // A dish (gallery) or dot (outdoor stage): drawn bigger than strip pixels.
-  const isDot = f => venue === "vos" ? /dots$/i.test(f.zone || "") : f.zone === "dishes" || f.led_type === "RGB";
+  const isDot = f => venue === "vos" ? /dots$/i.test(f.zone || "") : venue === "building" ? true : f.zone === "dishes" || f.led_type === "RGB";
   const allLayouts = () => {
     const ls = cfg.layouts || [];
     return elev && builtinBuilding && !ls.some(l => l.name === "Building") ? [builtinBuilding, ...ls] : ls;
@@ -948,7 +949,7 @@
   function describe(L) {
     const f = cfg.fixtures[L.fi];
     const c = live.preview && live.preview[L.fi] && live.preview[L.fi].colors[L.i];
-    const col = c ? `R${c[0]} G${c[1]} B${c[2]}${f.led_type === "RGBW" ? ` W${c[3]}` : ""}` : "";
+    const col = c ? `R${c[0]} G${c[1]} B${c[2]}${/RGBW$/.test(f.led_type) ? ` W${c[3]}` : ""}` : "";
     return `${f.name}   universe ${f.universe + 1}, address ${f.address + 1}   ${f.led_count} LED${f.led_count > 1 ? "s" : ""} ${f.led_type}   ${col}`;
   }
   let drag = null;
@@ -1223,15 +1224,14 @@
     selGroups = [
       { el: $("#selQuick"), chips: [
         ["All", vis],
-        ["Strips", strips],
+        ...(venue === "building" ? [] : [["Strips", strips]]),
         [VENUE.dots, dishes],
         ...zoneNames.filter(z => !["strips", "dishes"].includes(z)).map(z => [z, vis.filter(k => fx(k).zone === z)]),
       ] },
       { el: $("#selWalls"), chips: elev ? elev.elevations.map(e => [e.name, vis.filter(k => wallOf(k) === e.name)]) : [] },
       { el: $("#selMore"), chips: [
         ...(venue === "gallery" ? [["Strip corners", strips.filter(k => fx(k).led_count === 1)]] : []),
-        ["Strips, odd", strips.filter((_, i) => i % 2 === 0)],
-        ["Strips, even", strips.filter((_, i) => i % 2 === 1)],
+        ...(venue === "building" ? [] : [["Strips, odd", strips.filter((_, i) => i % 2 === 0)], ["Strips, even", strips.filter((_, i) => i % 2 === 1)]]),
         [`${VENUE.dots}, odd`, dishes.filter((_, i) => i % 2 === 0)],
         [`${VENUE.dots}, even`, dishes.filter((_, i) => i % 2 === 1)],
       ] },
@@ -1941,7 +1941,7 @@
   function patchUniverses() {
     const by = new Map();
     for (const f of cfg.fixtures) {
-      const cpl = f.channels_per_led || (f.led_type === "RGBW" ? 4 : 3);
+      const cpl = f.channels_per_led || ({ RGBW: 4, DRGBW: 5 }[f.led_type] || 3);
       const e = by.get(f.universe) || { universe: f.universe, fixture_count: 0, channel_count: 0, max_address: 0 };
       e.fixture_count++; e.channel_count += f.led_count * cpl; e.max_address = Math.max(e.max_address, f.address + f.led_count * cpl);
       by.set(f.universe, e);
@@ -2173,7 +2173,7 @@
       const s = q.value.trim().toLowerCase();
       body.replaceChildren(...cfg.fixtures.filter(f => !s || `${f.name} ${f.zone} ${f.universe + 1} ${f.led_type}`.toLowerCase().includes(s)).map(f => h("tr", null,
         h("td", { text: f.name }), h("td", { text: f.zone || "–" }), h("td", { text: f.led_type }), h("td", { class: "num", text: f.led_count }),
-        h("td", { class: "num", text: f.universe + 1 }), h("td", { class: "num", text: f.address + 1 }), h("td", { class: "num", text: `${f.address + 1}–${f.address + f.led_count * (f.channels_per_led || (f.led_type === "RGBW" ? 4 : 3))}` }))));
+        h("td", { class: "num", text: f.universe + 1 }), h("td", { class: "num", text: f.address + 1 }), h("td", { class: "num", text: `${f.address + 1}–${f.address + f.led_count * (f.channels_per_led || ({ RGBW: 4, DRGBW: 5 }[f.led_type] || 3))}` }))));
     };
     q.addEventListener("input", fill);
     $("#fixturesCard").replaceChildren(

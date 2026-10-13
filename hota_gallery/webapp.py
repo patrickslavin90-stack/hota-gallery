@@ -105,7 +105,7 @@ class Store:
         for fx in cfg["fixtures"]:
             u = fx["universe"]
             entry = by_universe.setdefault(u, {"universe": u, "fixture_count": 0, "channel_count": 0, "max_address": 0})
-            channels_per_led = fx.get("channels_per_led", 4 if fx["led_type"] == "RGBW" else 3)
+            channels_per_led = fx.get("channels_per_led", {"RGBW": 4, "DRGBW": 5}.get(fx["led_type"], 3))
             entry["fixture_count"] += 1
             entry["channel_count"] += fx["led_count"] * channels_per_led
             entry["max_address"] = max(entry["max_address"], fx["address"] + fx["led_count"] * channels_per_led)
