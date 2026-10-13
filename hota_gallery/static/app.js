@@ -2197,7 +2197,8 @@
     card.replaceChildren(
       h("header", null, h("h3", { text: "Nightly light battle" }),
         h("span", { class: `conn-summary ${on ? "ok" : ""}`, text: on ? `On - ${auto.time} vs ${auto.opponent}` : "Off" }),
-        h("div", { class: "actions" }, toggle)),
+        // Also here (not only on the Live toolbar), because phones hide the toolbar.
+        h("div", { class: "actions" }, h("button", { type: "button", class: "btn sm", text: "Play a match now", onclick: openBattleDialog }), toggle)),
       h("div", { class: "body" },
         h("p", { class: "hint", style: "margin-top:0", text: "An easter egg: a game of ping-pong between the buildings every night - a ball of light crossing each in turn, faster and faster, until one misses. The switch turns it on or off for both sides; while it's off here, this controller won't play." }),
         h("div", { class: "field" }, h("label", { for: "bOpp", text: "Against" }), opp),
