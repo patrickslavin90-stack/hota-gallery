@@ -96,6 +96,25 @@ install -m 0644 "$HERE/hota-vos.service" /etc/systemd/system/hota-vos.service
 systemctl daemon-reload
 systemctl enable --now hota-vos
 
+# Lighting network: let the service (and only it) set the wired port's
+# address through NetworkManager, from Settings -> sACN output.
+if command -v nmcli >/dev/null 2>&1 && [ -d /etc/polkit-1/rules.d ]; then
+  cat > /etc/polkit-1/rules.d/50-hota-vos-network.rules <<'EOF'
+// HOTA outdoor stage controller: may change NetworkManager connections, so
+// the lighting port's address can be set from its web UI (netconfig.py).
+polkit.addRule(function (action, subject) {
+  if (subject.user == "hota-vos" &&
+      (action.id == "org.freedesktop.NetworkManager.settings.modify.system" ||
+       action.id == "org.freedesktop.NetworkManager.network-control")) {
+    return polkit.Result.YES;
+  }
+});
+EOF
+  echo "The lighting port's address can be set from Settings -> sACN output."
+else
+  echo "NetworkManager or polkit not found: set the lighting port's address on the PC itself." >&2
+fi
+
 # Let phones and tablets on the network reach the web page.
 PORT=$(python3 -c "import json; print(json.load(open('/etc/hota-vos/config.json')).get('web_port', 8080))")
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then

@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
-from . import paste
+from . import netconfig, paste
 from .artnet import ARTNET_PORT, discover_nodes
 from .sacn import SACN_PORT, multicast_group
 from .config import ConfigError, off_look, save_config, validate_config
@@ -243,6 +243,36 @@ class Store:
             save_config(self.config_path, validated)
             self.engine.reload(validated)
             return validated["randomizer"]
+
+    def lighting_network(self) -> Dict[str, Any]:
+        """Wired/Wi-Fi ports and the lighting network profile, for Settings."""
+        return {
+            "available": netconfig.available(),
+            "interfaces": netconfig.interfaces(),
+            "profile": netconfig.current(),
+            "bind_ip": self.engine.cfg.get("bind_ip"),
+        }
+
+    def set_lighting_network(self, body: dict, via_ip: str) -> Dict[str, Any]:
+        """Give a wired port a fixed address (netconfig.apply) and send the
+        lighting output from it. via_ip is the address this request came in
+        on: the port carrying it is refused, so nobody cuts themselves off."""
+        interface, address, prefix = body.get("interface"), body.get("address"), body.get("prefix")
+        try:
+            netconfig.validate(interface, address, prefix)
+            for i in netconfig.interfaces():
+                if i["name"] == interface and any(a.split("/")[0] == via_ip for a in i["addresses"]):
+                    raise netconfig.NetConfigError(f"you're connected to the controller through {interface} - pick the lighting port, not this one")
+            result = netconfig.apply(interface, address, int(prefix))
+        except netconfig.NetConfigError as exc:
+            raise ConfigError(str(exc))
+        with self._lock:
+            cfg = dict(self.engine.cfg)
+            cfg["bind_ip"] = result["address"]
+            validated = validate_config(cfg)
+            save_config(self.config_path, validated)
+            self.engine.reload(validated)  # the sender reopens on the new address
+        return {**self.lighting_network(), "result": result}
 
     def set_clock_chime(self, clock_chime: dict) -> dict:
         with self._lock:
@@ -482,6 +512,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Disposition", f'attachment; filename="{device}-backup-{stamp}.zip"')
             self.end_headers()
             self.wfile.write(body)
+        elif self.path == "/api/network":
+            self._send_json(200, self.store.lighting_network())
         elif self.path == "/api/artnet/status":
             self._send_json(200, self.store.artnet_status())
         elif self.path == "/api/artnet/discover":
@@ -564,6 +596,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/clock_chime":
                 clock_chime = self.store.set_clock_chime(body)
                 self._send_json(200, clock_chime)
+            elif self.path == "/api/network":
+                self._send_json(200, self.store.set_lighting_network(body, self.connection.getsockname()[0]))
             elif self.path == "/api/layouts":
                 layouts = self.store.set_layouts(body)
                 self._send_json(200, layouts)

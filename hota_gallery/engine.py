@@ -178,15 +178,18 @@ class Engine:
 
         self._lock = threading.Lock()
         self._stop = threading.Event()
+        self._rebind = threading.Event()  # bind_ip changed: reopen the sender
         self._sender: Optional[Any] = None  # ArtNetSender or SacnSender
 
     # -- live reconfiguration -------------------------------------------
 
     def reload(self, cfg: Dict[str, Any]) -> None:
         """Apply fixtures/look/fps changes without restarting the process.
-        bind_ip is NOT handled here - it owns the sender's one socket,
-        same call sacn2wiz's Bridge.reload makes about its receive socket.
-        """
+        A new bind_ip is picked up too: the sender loop reopens its socket
+        on the next frame (see _sender_loop)."""
+        if cfg.get("bind_ip") != self.bind_ip:
+            self.bind_ip = cfg.get("bind_ip")
+            self._rebind.set()
         with self._lock:
             self.fps = float(cfg["fps"])
             self.fixtures = [Fixture(f) for f in cfg["fixtures"]]
@@ -452,15 +455,44 @@ class Engine:
             return 0.0
         return (usec / 1_000_000.0) / 2.0 if usec > 0 else 0.0
 
+    def _open_sender(self) -> Optional[Any]:
+        """The sender for the current bind_ip, or None if that address can't
+        be used yet - typically the lighting network's cable is out, so the
+        address isn't on the interface. The loop retries every few seconds."""
+        try:
+            return self._make_sender(self.bind_ip or self._auto_bind_ip())
+        except OSError as exc:
+            log.warning("can't send from %s yet (%s) - retrying every 5 s", self.bind_ip or "the automatic address", exc)
+            return None
+
     def _sender_loop(self) -> None:
-        self._sender = self._make_sender(self.bind_ip or self._auto_bind_ip())
+        self._sender = self._open_sender()
+        next_open = time.monotonic() + 5
         watchdog_period = self._watchdog_period()
         next_watchdog = 0.0
         try:
             while not self._stop.is_set():
                 now = time.monotonic()
-                frames = self.build_frames()
-                self._sender.send_universes({u: bytes(b) for u, b in frames.items()})
+                if self._rebind.is_set():
+                    self._rebind.clear()
+                    if self._sender:
+                        self._sender.close()
+                    self._sender = self._open_sender()
+                    next_open = now + 5
+                elif self._sender is None and now >= next_open:
+                    self._sender = self._open_sender()
+                    next_open = now + 5
+                if self._sender:
+                    frames = self.build_frames()
+                    try:
+                        self._sender.send_universes({u: bytes(b) for u, b in frames.items()})
+                    except OSError as exc:
+                        # Address gone (cable pulled, IP changed): drop the
+                        # socket and reopen it on the retry timer.
+                        log.warning("sending failed (%s) - reopening", exc)
+                        self._sender.close()
+                        self._sender = None
+                        next_open = now + 5
 
                 if watchdog_period and now >= next_watchdog:
                     sd_notify("WATCHDOG=1")
@@ -473,8 +505,7 @@ class Engine:
 
     def _make_sender(self, bind_ip: str) -> Any:
         """Art-Net for the gallery, sACN for the outdoor stage - picked by
-        the config's "protocol". Like bind_ip, a change only applies on
-        restart, since the sender owns the socket."""
+        the config's "protocol". A protocol change applies on restart."""
         cfg = self.cfg
         if cfg.get("protocol") == "sacn":
             return SacnSender(

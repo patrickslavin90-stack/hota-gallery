@@ -38,6 +38,8 @@
     backgroundUrl(name) { return `/api/layouts/${encodeURIComponent(name)}/background?t=${Date.now()}`; }
     artnetStatus() { return request("GET", "/api/artnet/status"); }
     artnetDiscover() { return request("GET", "/api/artnet/discover"); }
+    getNetwork() { return request("GET", "/api/network"); }
+    putNetwork(body) { return request("PUT", "/api/network", body); }
   }
 
   // The demo runs the gallery by default; ?venue=vos runs the outdoor
@@ -122,6 +124,8 @@
     async putBackground() { throw new ApiError("Background images need the controller - not available in the demo."); }
     backgroundUrl() { return null; }
     async artnetStatus() { return null; }
+    async getNetwork() { return { available: false, interfaces: [], profile: null, bind_ip: this.cfg.bind_ip }; }
+    async putNetwork() { throw new ApiError("Changing network settings needs the controller - not available in the demo."); }
     async artnetDiscover() { throw new ApiError("Node discovery needs the controller on the lighting network."); }
     reset() { try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ } this.cfg = structuredClone(this.seed); return this._save(); }
   }

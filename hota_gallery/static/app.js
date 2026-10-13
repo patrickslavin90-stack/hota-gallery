@@ -1954,6 +1954,7 @@
     const alertSlot = h("div", { class: "alert-slot" });
     const body = h("div", { class: "body" }, h("p", { class: "hint", style: "margin:0", text: "Loading…" }));
     card.replaceChildren(h("header", null, h("h3", { text: "sACN output" })), alertSlot, body);
+    const netSection = h("div");
     let st = null;
     if (api.kind === "controller") {
       try { st = await api.artnetStatus(); } catch (e) { slideAlert(alertSlot, "Couldn't read the output status", errText(e), 0); }
@@ -1978,7 +1979,73 @@
           h("td", { class: "num", text: u.channel_count }),
           h("td", { class: "num" + (u.max_address > 512 ? " err-text" : ""), text: u.max_address > 512 ? `${u.max_address} (over 512)` : u.max_address })))))),
       h("p", { class: "hint", text: "sACN receivers don't answer a scan the way Art-Net nodes do, so this can't check that the lights are listening. Universes are numbered from 1, the same as on the console." }),
+      netSection,
     );
+    renderLightingNetwork(netSection);
+  }
+
+  // Lighting network: give a wired port a fixed address and send the
+  // lighting from it (PUT /api/network -> netconfig.py, NetworkManager).
+  async function renderLightingNetwork(box) {
+    let net = null;
+    try { net = await api.getNetwork(); } catch { net = null; }
+    if (!net || !net.available) {
+      box.replaceChildren(h("h4", { class: "group-lbl", style: "margin-top:18px", text: "Lighting network" }),
+        h("p", { class: "hint", style: "margin:0", text: api.kind === "controller"
+          ? "This controller can't change its network settings (NetworkManager isn't installed). Set the lighting port's address on the PC itself, then pick it under Device."
+          : "Setting the lighting port's address needs the controller - not available in the demo." }));
+      return;
+    }
+    const wired = net.interfaces.filter(i => i.type === "ethernet");
+    const prof = net.profile || {};
+    const describe = i => `${i.name} - ${i.cable === false ? "no cable" : i.addresses.length ? i.addresses.join(", ") : i.state}`;
+    const port = h("select", { id: "netPort", "aria-label": "Lighting network port" },
+      wired.map(i => h("option", { value: i.name, text: describe(i), selected: i.name === (prof.interface || wired[0].name) })));
+    const ip = h("input", { type: "text", id: "netIp", inputmode: "decimal", placeholder: "e.g. 2.0.0.10", value: prof.address || "", style: "width:180px", "aria-label": "IP address" });
+    const mask = n => [0, 1, 2, 3].map(k => ((0xffffffff << (32 - n)) >>> 0) >>> (24 - 8 * k) & 255).join(".");
+    // The usual lighting subnets first, then the rest.
+    const prefixes = [8, 16, 24, ...Array.from({ length: 23 }, (_, k) => k + 8).filter(p => ![8, 16, 24].includes(p))];
+    const prefix = h("select", { id: "netPrefix", "aria-label": "Subnet" },
+      prefixes.map(p => h("option", { value: p, text: `${mask(p)} (/${p})`, selected: p === (prof.prefix || 8) })));
+    const apply = h("button", { type: "button", class: "btn primary", text: "Apply" });
+    const status = h("p", { class: "hint", style: "margin:8px 0 0" });
+    const live = net.bind_ip && net.bind_ip !== "127.0.0.1";
+    status.textContent = prof.address
+      ? `Set to ${prof.address}/${prof.prefix} on ${prof.interface}. Lighting is ${live ? `sent from ${net.bind_ip}` : "not being sent anywhere yet (127.0.0.1)"}.`
+      : `Not set yet. Lighting is ${live ? `sent from ${net.bind_ip}` : "not being sent anywhere yet (127.0.0.1)"}.`;
+    apply.addEventListener("click", async () => {
+      const body = { interface: port.value, address: ip.value.trim(), prefix: +prefix.value };
+      if (!body.address) { toast("Type the address for the lighting port", true); ip.focus(); return; }
+      const ok = await ask({
+        title: "Change the lighting network?",
+        message: `${body.interface} gets the fixed address ${body.address} (${mask(body.prefix)}), and the lighting goes out from it straight away - the real lights will respond if they're on that network. Wi-Fi isn't changed.`,
+        ok: "Apply",
+      });
+      if (!ok) return;
+      apply.disabled = true; apply.textContent = "Applying…";
+      try {
+        const res = await api.putNetwork(body);
+        const st = res.result.state;
+        toast(st === "up" ? `${res.result.interface} is now ${res.result.address} - lighting is going out from it`
+          : st === "waiting for cable" ? `Saved - ${res.result.interface} takes ${res.result.address} as soon as its cable is plugged in`
+          : `Saved, but ${res.result.interface} didn't come up: ${st}`, st !== "up" && st !== "waiting for cable");
+        cfg.bind_ip = res.bind_ip;
+        renderDevice();
+      } catch (e) {
+        toast(errText(e), true);
+      }
+      renderLightingNetwork(box);
+    });
+    box.replaceChildren(
+      h("h4", { class: "group-lbl", style: "margin-top:18px", text: "Lighting network" }),
+      wired.length
+        ? h("div", null,
+          h("p", { class: "hint", style: "margin-top:0", text: "Give the wired port the lighting network's address. sACN is sent from it, the setting survives reboots, and it comes up by itself when the cable's plugged in. Wi-Fi isn't touched." }),
+          h("div", { class: "field" }, h("label", { for: "netPort", text: "Port" }), port),
+          h("div", { class: "field" }, h("label", { for: "netIp", text: "IP address" }), ip),
+          h("div", { class: "field" }, h("label", { for: "netPrefix", text: "Subnet" }), prefix),
+          apply, status)
+        : h("p", { class: "hint", style: "margin:0", text: "This controller has no wired network port." }));
   }
 
   async function renderArtnet() {
