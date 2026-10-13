@@ -51,6 +51,15 @@ Kiosk (full-screen control on the PC's own screen, like the gallery):
    Alt+F4 closes it for a moment (it reopens), or remove
    ~/.config/autostart/hota-vos-kiosk.desktop to turn it off.
 
+Paste board (for setting up machines):
+
+   The controller hosts a shared scratchpad at  http://<controller>:8080/paste
+   - paste a command on one machine, open the page on another, press Copy.
+   paste.py in this folder is the same thing on its own: on any machine
+   with Python 3, run  python3 paste.py  and open the address it prints
+   (port 8090). Anyone on the network can read it; pastes are kept in
+   memory only, so it's for commands, not passwords.
+
 To update later, run the installer from a newer USB copy: the program is
 replaced and your looks, schedules and presets are kept.
 
@@ -68,6 +77,8 @@ def main() -> int:
     # Linux line endings, whatever git checked out on Windows.
     for name in ("install-vos.sh", "hota-vos.service", "vos-kiosk.sh"):
         (out / name).write_bytes((ROOT / name).read_bytes().replace(b"\r\n", b"\n"))
+    # The paste board on its own, for any machine with Python 3.
+    (out / "paste.py").write_bytes((ROOT / "hota_gallery" / "paste.py").read_bytes().replace(b"\r\n", b"\n"))
     (out / "README.txt").write_text(README, encoding="utf-8", newline="\n")
     size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file())
     print(f"wrote {out} ({size / 1e6:.1f} MB)")

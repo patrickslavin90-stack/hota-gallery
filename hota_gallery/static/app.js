@@ -1732,6 +1732,9 @@
             h("button", { type: "button", class: "btn primary", text: "Scan to connect", onclick: openRemoteAccessDialog }),
             h("div", { class: "field", style: "margin-top:14px" }, h("label", { for: "dPin", text: "Access PIN" }), pin),
             h("p", { class: "hint", text: "Asked once per browser for anyone connecting remotely - this kiosk screen is never asked. This is a speed bump, not real security: it doesn't stop someone who reaches the controller's network directly." }),
+            h("div", { class: "field", style: "margin-top:14px" }, h("label", { text: "Paste board" }),
+              h("a", { class: "btn", href: "/paste", text: "Open the paste board" })),
+            h("p", { class: "hint", text: `A shared scratchpad for setting up machines: paste a command here, open ${location.host}/paste on another computer and copy it. Anyone on the network can read it, and it's cleared on restart.` }),
           ]
           : h("p", { class: "hint", style: "margin-top:0", text: "Scanning to connect needs the real controller - not available in the demo." })));
   }

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
+from . import paste
 from .artnet import ARTNET_PORT, discover_nodes
 from .sacn import SACN_PORT, multicast_group
 from .config import ConfigError, off_look, save_config, validate_config
@@ -444,6 +445,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
+        if paste.handle(self, "GET"):  # /paste - shared scratchpad, see paste.py
+            return
         if self.path in ("/", "/index.html"):
             self._send_file("index.html")
         elif self.path.startswith("/static/"):
@@ -575,6 +578,15 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001 - a 500 beats a dropped connection
             log.exception("unhandled error on PUT %s", self.path)
             self._send_json(500, {"error": str(exc)})
+
+
+    def do_POST(self) -> None:
+        if not paste.handle(self, "POST"):
+            self._send_json(404, {"error": "not found"})
+
+    def do_DELETE(self) -> None:
+        if not paste.handle(self, "DELETE"):
+            self._send_json(404, {"error": "not found"})
 
 
 def create_server(engine: Engine, config_path: str, host: str = "0.0.0.0", port: int = 8080) -> ThreadingHTTPServer:
