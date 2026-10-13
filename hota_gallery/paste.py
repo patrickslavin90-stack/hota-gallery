@@ -34,13 +34,13 @@ class PasteBoard:
         self._lock = threading.Lock()
         self._next_id = 1
 
-    def add(self, text: str, source: str) -> Dict[str, Any]:
+    def add(self, text: str, source: str, run: bool = False) -> Dict[str, Any]:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("nothing to paste")
         if len(text) > MAX_CHARS:
             raise ValueError(f"too long ({len(text)} characters, the limit is {MAX_CHARS})")
         with self._lock:
-            item = {"id": self._next_id, "text": text, "at": time.time(), "from": source}
+            item = {"id": self._next_id, "text": text, "at": time.time(), "from": source, "run": bool(run)}
             self._next_id += 1
             self._items.appendleft(item)
             return item
@@ -69,15 +69,15 @@ def handle(h: BaseHTTPRequestHandler, method: str, board: PasteBoard = BOARD) ->
         return _send(h, 200, PAGE.encode(), "text/html; charset=utf-8")
     # Plain text of the newest paste (or /raw/<id>), for a terminal where
     # pasting doesn't work:  wget -qO- <host>:8090/raw | sh
-    # Only pastes made on the board's own machine count: output pasted back
-    # from another machine must never be what the next `| sh` runs.
+    # Only pastes explicitly posted as runnable ({"run": true} through the
+    # API, from the board's own machine) count. Anything pasted in the page
+    # - terminal output especially - must never be what the next `| sh` runs.
     if method == "GET" and (path == "/raw" or path.startswith("/raw/") or path.startswith("/paste/raw")):
-        own = {"127.0.0.1", h.connection.getsockname()[0]}
-        items = [i for i in board.list() if i["from"] in own]
+        items = [i for i in board.list() if i.get("run")]
         tail = path.rstrip("/").rsplit("/", 1)[1]
         pick = next((i for i in items if str(i["id"]) == tail), None) if tail.isdigit() else (items[0] if items else None)
         if not pick:
-            return _send(h, 404, b"echo 'Nothing on the paste board from its own machine'\n", "text/plain; charset=utf-8")
+            return _send(h, 404, b"echo 'Nothing on the paste board to run'\n", "text/plain; charset=utf-8")
         return _send(h, 200, (pick["text"].replace("\r\n", "\n").rstrip("\n") + "\n").encode(), "text/plain; charset=utf-8")
     if not path.startswith("/api/paste"):
         return False
@@ -89,7 +89,10 @@ def handle(h: BaseHTTPRequestHandler, method: str, board: PasteBoard = BOARD) ->
             if length > MAX_CHARS * 4 + 1024:
                 return _send_json(h, 413, {"error": "too long"})
             body = json.loads(h.rfile.read(length).decode("utf-8") or "{}")
-            return _send_json(h, 200, board.add(body.get("text", ""), h.client_address[0]))
+            # Runnable only when asked for, and only from the board's own
+            # machine itself (loopback) - not from a browser on the network.
+            local = h.client_address[0] in ("127.0.0.1", "::1")
+            return _send_json(h, 200, board.add(body.get("text", ""), h.client_address[0], run=local and body.get("run") is True))
         if method == "DELETE" and path == "/api/paste":
             board.clear()
             return _send_json(h, 200, [])
@@ -150,7 +153,7 @@ PAGE = r"""<!doctype html>
 <main>
   <a id="back" href="/" hidden style="color:var(--muted);font-size:13px;text-decoration:none">&larr; Back to the lighting control</a>
   <h1>Paste board</h1>
-  <p class="sub">Paste on one machine, copy on another. Ctrl+Enter sends. In a terminal where pasting misbehaves, <code id="rawcmd">wget -qO- HOST/raw | sh</code> runs the newest paste.</p>
+  <p class="sub">Paste on one machine, copy on another. Ctrl+Enter sends. In a terminal where pasting misbehaves, <code id="rawcmd">wget -qO- HOST/raw | sh</code> runs the newest paste marked "runs with /raw" - never anything pasted on this page.</p>
   <div class="warn">Anyone on this network can read this page, and it's cleared when the controller restarts. Fine for commands, not for passwords or keys.</div>
   <textarea id="text" placeholder="Paste a command or some config here" spellcheck="false" autofocus></textarea>
   <div class="row">
@@ -201,6 +204,8 @@ PAGE = r"""<!doctype html>
       const from = document.createElement("span"); from.className = "grow"; from.textContent = "from " + it.from;
       const lines = it.text.split("\n").length;
       const size = document.createElement("span"); size.textContent = lines > 1 ? lines + " lines" : "";
+      const tag = document.createElement("span");
+      if (it.run) { tag.textContent = "runs with /raw"; tag.title = "This is what  wget -qO- …/raw | sh  runs. Pastes made on this page never run."; tag.style.cssText = "color:#6ff0b6;border:1px solid rgba(61,220,151,.4);border-radius:999px;padding:1px 8px"; }
       const copyBtn = document.createElement("button"); copyBtn.textContent = "Copy";
       copyBtn.onclick = async () => {
         try { await copy(it.text); copyBtn.textContent = "Copied"; card.classList.add("copied"); setTimeout(() => { copyBtn.textContent = "Copy"; card.classList.remove("copied"); }, 1500); }
@@ -208,7 +213,7 @@ PAGE = r"""<!doctype html>
       };
       const del = document.createElement("button"); del.className = "ghost"; del.textContent = "Delete"; del.title = "Delete this paste";
       del.onclick = async () => { items = await api("DELETE", "/api/paste/" + it.id); render(); };
-      head.append(when, from, size, copyBtn, del);
+      head.append(when, from, tag, size, copyBtn, del);
       const pre = document.createElement("pre"); pre.textContent = it.text;
       card.append(head, pre);
       return card;
