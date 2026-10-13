@@ -25,6 +25,7 @@
     </nav>
     <div class="status">
       <div class="conn" id="conn" data-kind="pending"><i></i><span>Connecting…</span></div>
+      <button type="button" class="lights" id="outputOff" data-state="bad" hidden title="This controller isn't sending to the lights - turn it back on under Settings"><i></i><span>Output off</span></button>
       <button type="button" class="lights" id="battlePill" data-state="ok" hidden title="Click to stop the light battle"><i></i><span></span></button>
       <button type="button" class="lights" id="parked" data-state="part" hidden title="Channels are being set by hand - open Channels to release them"><i></i><span></span></button>
       <button type="button" class="lights" id="lights" hidden><i></i><span></span></button>
@@ -154,6 +155,7 @@
       <div class="card" id="remoteCard"></div>
       <div class="card" id="artnetCard"></div>
       <div class="card" id="peersCard"></div>
+      <div class="card" id="battleCard" hidden></div>
       <div class="card" id="configCard"></div>
       <div class="card" id="fixturesCard"></div>
     </div></div>

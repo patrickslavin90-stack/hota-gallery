@@ -18,6 +18,7 @@ import io
 import json
 import logging
 import mimetypes
+import random
 import re
 import subprocess
 import threading
@@ -29,7 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
-from . import battle as battle_mod, netconfig, paste
+from . import battle as battle_mod, crowd, netconfig, paste
 from .artnet import ARTNET_PORT, discover_nodes
 from .sacn import SACN_PORT, multicast_group
 from .config import ConfigError, off_look, save_config, validate_config
@@ -310,17 +311,74 @@ class Store:
         match, me = body.get("match"), body.get("me")
         if not isinstance(match, dict) or not isinstance(me, int) or not 0 <= me < len(match.get("players", [])):
             raise ConfigError("not a light battle")
+        if body.get("auto") and not (self.engine.cfg.get("battle_auto") or {}).get("enabled"):
+            raise ConfigError("the nightly light battle is switched off here")
         starts_in = float(body.get("starts_in", 0))
         if not 0 <= starts_in <= 30 or not 0 < float(match.get("duration", 0)) <= 600:
             raise ConfigError("light battle timing out of range")
         self.engine.battle = battle_mod.Battle(match, me, time.time() + starts_in)
+        self._arm_record(self.engine.battle)
         log.info("light battle: playing %s, starts in %.1f s", match["players"][me]["name"], starts_in)
         return self.engine.battle.status()
+
+    def _arm_record(self, b: Any) -> None:
+        """Score a ping-pong match once its finale starts - unless it was
+        stopped, so only matches played to the end count. Each player
+        records the same script, so their scoreboards agree."""
+        if b.match.get("style", "pingpong") != "pingpong":
+            return
+        delay = b.start + b.match["finale"]["t0"] + 0.5 - time.time()
+
+        def record() -> None:
+            if getattr(b, "stopped", False) or self.engine.battle is not b:
+                return
+            names = [p["name"] for p in b.match["players"]]
+            winner = names[b.match["finale"]["winner"]]
+            key = " vs ".join(sorted(names))
+            with self._lock:
+                cfg = dict(self.engine.cfg)
+                rec = copy.deepcopy(cfg.get("battle_record") or {})
+                tally = rec.setdefault(key, {})
+                for n in names:
+                    tally.setdefault(n, 0)
+                tally[winner] += 1
+                cfg["battle_record"] = rec
+                validated = validate_config(cfg)
+                save_config(self.config_path, validated)
+                self.engine.reload(validated)
+            log.info("light battle: %s won (%s: %s)", winner, key, tally)
+
+        t = threading.Timer(max(0.0, delay), record)
+        t.daemon = True
+        t.start()
+
+    def crowd_status(self) -> Optional[Dict[str, Any]]:
+        b = self.engine.battle
+        return b.status() if isinstance(b, crowd.CrowdBattle) and not b.over() else None
+
+    def start_crowd(self, body: dict) -> Dict[str, Any]:
+        """Start an audience-phone tug of war on this controller's lights."""
+        colours = {s: tuple(int(v) for v in body["colours"][s]) for s in crowd.SIDES if s in (body.get("colours") or {})}
+        limit = float(body.get("time_limit", crowd.TIME_LIMIT_S))
+        if not 20 <= limit <= 600:
+            raise ConfigError("time limit must be 20-600 seconds")
+        self.engine.battle = crowd.CrowdBattle(colours, limit)
+        log.info("crowd battle started")
+        return self.engine.battle.status()
+
+    def crowd_tap(self, body: dict, client_ip: str) -> Dict[str, Any]:
+        b = self.engine.battle
+        if not isinstance(b, crowd.CrowdBattle):
+            return {"ok": False}
+        phone = f"{client_ip}/{str(body.get('phone', ''))[:40]}"
+        return {"ok": b.tap(phone, str(body.get("side")), int(body.get("count", 1)))}
 
     def stop_battle(self, everywhere: bool) -> None:
         b = self.engine.battle
         self.engine.battle = None
-        if everywhere and b is not None:
+        if b is not None:
+            b.stopped = True  # a stopped match doesn't go on the scoreboard
+        if everywhere and b is not None and hasattr(b, "match"):
             for p in b.match["players"]:
                 if p.get("url"):
                     try:
@@ -361,7 +419,7 @@ class Store:
         for i, p in enumerate(players):
             if not p["url"]:
                 continue
-            payload = json.dumps({"match": match, "me": i, "starts_in": max(0.5, lead - (time.time() - t0))}).encode()
+            payload = json.dumps({"match": match, "me": i, "starts_in": max(0.5, lead - (time.time() - t0)), "auto": bool(body.get("auto"))}).encode()
             try:
                 urllib.request.urlopen(urllib.request.Request(p["url"].rstrip("/") + "/api/battle", payload,
                                                               {"Content-Type": "application/json"}, method="PUT"), timeout=3).close()
@@ -377,7 +435,67 @@ class Store:
             raise ConfigError("couldn't start the battle - " + ", ".join(failed) + " didn't join (it may need updating)")
         me = next(i for i, p in enumerate(players) if not p["url"])
         self.engine.battle = battle_mod.Battle(match, me, t0 + lead)
+        self._arm_record(self.engine.battle)
         return self.engine.battle.status()
+
+    def my_name(self) -> str:
+        cfg = self.engine.cfg
+        return self.VENUE_NAMES.get(cfg.get("venue"), cfg.get("device_name") or "This controller")
+
+    def set_battle_auto(self, body: dict, propagate: bool = False) -> Dict[str, Any]:
+        """Change the nightly easter egg. propagate=True (the Settings
+        switch) also sets the opponent the same way, pointed back at us, so
+        one switch turns it on or off for both."""
+        with self._lock:
+            cfg = dict(self.engine.cfg)
+            cfg["battle_auto"] = {**(cfg.get("battle_auto") or {}), **{k: v for k, v in body.items() if k in ("enabled", "opponent", "time", "points_to_win")}}
+            validated = validate_config(cfg)
+            save_config(self.config_path, validated)
+            self.engine.reload(validated)
+            ba = validated["battle_auto"]
+        if propagate and ba.get("opponent"):
+            peer = next((p for p in self.engine.cfg.get("peers", []) if p["name"] == ba["opponent"]), None)
+            if peer:
+                mirror = {"enabled": ba["enabled"], "opponent": self.my_name(), "time": ba["time"], "points_to_win": ba["points_to_win"]}
+                try:
+                    urllib.request.urlopen(urllib.request.Request(peer["url"].rstrip("/") + "/api/battle/auto", json.dumps(mirror).encode(),
+                                                                  {"Content-Type": "application/json"}, method="PUT"), timeout=3).close()
+                except Exception as exc:  # noqa: BLE001
+                    raise ConfigError(f"saved here, but {peer['name']} didn't take the change ({getattr(exc, 'reason', exc)}) - set it there too")
+        return ba
+
+    _auto_fired: Optional[str] = None  # date the nightly match was last tried
+
+    def auto_battle_tick(self) -> None:
+        """Called every few seconds by cli.py: at battle_auto.time, serve the
+        nightly ping-pong match. Both sides run this; the one whose name
+        sorts first serves on the dot, the other 20 s later and only if no
+        match started (its partner was off or offline)."""
+        ba = self.engine.cfg.get("battle_auto") or {}
+        if not ba.get("enabled") or not ba.get("opponent"):
+            return
+        now = datetime.datetime.now()
+        hh, mm = (int(x) for x in ba.get("time", "19:30").split(":"))
+        due = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        today = now.date().isoformat()
+        late = (now - due).total_seconds()
+        if self._auto_fired == today or not 0 <= late < 120:
+            return
+        first = self.my_name() < ba["opponent"]
+        if not first and late < 20:
+            return
+        self._auto_fired = today
+        if self.engine.battle is not None:
+            return
+        peer = next((p for p in self.peers_status() if p["name"] == ba["opponent"]), None)
+        if not peer or not peer.get("online") or peer.get("battle"):
+            log.info("nightly light battle: %s isn't free, skipped", ba["opponent"])
+            return
+        try:
+            self.start_battle({"players": ["this", ba["opponent"]], "points_to_win": ba.get("points_to_win", 3), "auto": True})
+            log.info("nightly light battle: serving against %s", ba["opponent"])
+        except ConfigError as exc:
+            log.info("nightly light battle skipped: %s", exc)
 
     def peers_status(self) -> List[Dict[str, Any]]:
         """Each configured peer controller with its /api/status, asked by
@@ -392,7 +510,8 @@ class Store:
                 with urllib.request.urlopen(url, timeout=2) as r:
                     st = json.loads(r.read().decode())
                 out[i].update(online=True, device_name=st.get("device_name"), fixture_count=st.get("fixture_count"),
-                              venue=st.get("venue"), protocol=st.get("protocol"), output_live=st.get("output_live"))
+                              venue=st.get("venue"), protocol=st.get("protocol"), output_live=st.get("output_live"),
+                              battle=st.get("battle"), battle_capable=bool(st.get("battle_capable")))
             except Exception as exc:  # noqa: BLE001 - offline, wrong address, not a controller
                 out[i]["error"] = str(getattr(exc, "reason", exc))
 
@@ -645,6 +764,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if paste.handle(self, "GET"):  # /paste - shared scratchpad, see paste.py
             return
+        if self.path.split("?")[0] in ("/crowd", "/crowd/"):  # audience phones - crowd.py
+            body = crowd.PAGE.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path in ("/", "/index.html"):
             self._send_file("index.html")
         elif self.path.startswith("/static/"):
@@ -658,7 +786,8 @@ class Handler(BaseHTTPRequestHandler):
                 # For other controllers' "Other controllers" card.
                 "venue": cfg.get("venue", "gallery"),
                 "protocol": cfg.get("protocol", "artnet"),
-                "output_live": cfg.get("bind_ip") != "127.0.0.1",
+                "output_live": cfg.get("bind_ip") != "127.0.0.1" and cfg.get("output_enabled", True),
+                "output_enabled": cfg.get("output_enabled", True),
                 "overrides": sum(len(c) for c in self.store.engine.overrides.values()),
                 "battle": self.store.battle_status(),
                 "battle_capable": True,
@@ -693,6 +822,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, self.store.peers_status())
         elif self.path == "/api/battle":
             self._send_json(200, self.store.battle_status())
+        elif self.path == "/api/battle/record":
+            cfg = self.store.get_config()
+            self._send_json(200, {"record": cfg.get("battle_record", {}), "auto": cfg.get("battle_auto", {})})
+        elif self.path == "/api/crowd":
+            self._send_json(200, self.store.crowd_status())
         elif re.fullmatch(r"/api/dmx/\d+", self.path):
             self._send_json(200, self.store.dmx(int(self.path.rsplit("/", 1)[1])))
         elif self.path == "/api/artnet/status":
@@ -781,6 +915,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, self.store.set_lighting_network(body, self.connection.getsockname()[0]))
             elif self.path == "/api/peers":
                 self._send_json(200, self.store.set_peers(body))
+            elif self.path.split("?")[0] == "/api/battle/auto":
+                # From the Settings switch (?both=1): set the opponent too.
+                self._send_json(200, self.store.set_battle_auto(body, propagate="both=1" in self.path))
+            elif self.path == "/api/crowd/start":
+                self._send_json(200, self.store.start_crowd(body))
             elif self.path == "/api/battle/start":
                 self._send_json(200, self.store.start_battle(body))
             elif self.path == "/api/battle":
@@ -804,7 +943,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
     def do_POST(self) -> None:
-        if not paste.handle(self, "POST"):
+        if self.path == "/api/crowd/tap":
+            try:
+                self._send_json(200, self.store.crowd_tap(self._read_json(), self.client_address[0]))
+            except (ValueError, UnicodeDecodeError):
+                self._send_json(400, {"error": "bad tap"})
+        elif not paste.handle(self, "POST"):
             self._send_json(404, {"error": "not found"})
 
     def do_DELETE(self) -> None:

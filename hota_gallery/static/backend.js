@@ -44,6 +44,7 @@
     getBattle() { return request("GET", "/api/battle"); }
     startBattle(body) { return request("PUT", "/api/battle/start", body); }
     stopBattle() { return request("DELETE", "/api/battle?all=1"); }
+    startCrowd(body) { return request("PUT", "/api/crowd/start", body || {}); }
     putDmx(u, body) { return request("PUT", `/api/dmx/${u}`, body); }
     putPeers(list) { return request("PUT", "/api/peers", list); }
     putNetwork(body) { return request("PUT", "/api/network", body); }
@@ -134,6 +135,7 @@
     async getBattle() { return null; }
     async startBattle() { throw new ApiError("Light battles need the real controllers."); }
     async stopBattle() { return null; }
+    async startCrowd() { throw new ApiError("The crowd battle needs the real controller."); }
     async getDmx() { throw new ApiError("Channel control needs the controller."); }
     async putDmx() { throw new ApiError("Channel control needs the controller."); }
     async getPeers() { return (this.cfg.peers || []).map(p => ({ ...p, online: null })); }

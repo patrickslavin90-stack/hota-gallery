@@ -158,6 +158,16 @@ CONFIG_DEFAULTS: Dict[str, Any] = {
     # building...), shown with their status under Settings -> Other
     # controllers: [{"name": "Gallery", "url": "http://10.38.12.12:8080/"}].
     "peers": [],
+    # Light battle easter egg: a ping-pong match against `opponent` (a peer's
+    # name) every night at `time`. Set on both sides; one serves on the dot
+    # and the other only steps in if that didn't happen (Store.auto_battle_tick).
+    # Switched off, this controller also won't join one.
+    "battle_auto": {"enabled": False, "opponent": None, "time": "19:30", "points_to_win": 3},
+    # False = send no lighting data at all (e.g. a console has the rig).
+    "output_enabled": True,
+    # All-time results of finished ping-pong matches, per pairing:
+    # {"Gallery vs Outdoor stage": {"Gallery": 7, "Outdoor stage": 5}}.
+    "battle_record": {},
 }
 
 FIXTURE_KEYS = {
@@ -660,6 +670,21 @@ def validate_config(raw: Any) -> Dict[str, Any]:
 
     if not isinstance(cfg["sacn_destinations"], list) or not all(_valid_ip(ip) for ip in cfg["sacn_destinations"]):
         errors.append(f"sacn_destinations must be a list of IPv4 addresses, got {cfg['sacn_destinations']!r}")
+
+    ba = cfg["battle_auto"]
+    if not isinstance(ba, dict):
+        errors.append("battle_auto must be an object")
+    else:
+        if not _valid_time_str(ba.get("time", "19:30")):
+            errors.append(f"battle_auto.time must be HH:MM, got {ba.get('time')!r}")
+        if not isinstance(ba.get("points_to_win", 3), int) or not 1 <= ba.get("points_to_win", 3) <= 9:
+            errors.append(f"battle_auto.points_to_win must be 1-9, got {ba.get('points_to_win')!r}")
+        if ba.get("opponent") is not None and not isinstance(ba.get("opponent"), str):
+            errors.append("battle_auto.opponent must be a peer's name or null")
+    if not isinstance(cfg["output_enabled"], bool):
+        errors.append(f"output_enabled must be true or false, got {cfg['output_enabled']!r}")
+    if not isinstance(cfg["battle_record"], dict):
+        errors.append("battle_record must be an object")
 
     peers = cfg["peers"]
     if not isinstance(peers, list):

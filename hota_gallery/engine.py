@@ -197,6 +197,9 @@ class Engine:
         if cfg.get("bind_ip") != self.bind_ip:
             self.bind_ip = cfg.get("bind_ip")
             self._rebind.set()
+        # sACN priority applies live, no new socket needed.
+        if self._sender is not None and hasattr(self._sender, "priority"):
+            self._sender.priority = cfg.get("sacn_priority", 100)
         with self._lock:
             self.fps = float(cfg["fps"])
             self.fixtures = [Fixture(f) for f in cfg["fixtures"]]
@@ -232,6 +235,8 @@ class Engine:
         battle = self.battle
         if battle is not None:
             wall = time.time()
+            if hasattr(battle, "step"):
+                battle.step(wall)  # crowd battle: move the line once per frame
             if battle.over(wall):
                 self.battle = None
             else:
@@ -521,6 +526,18 @@ class Engine:
         try:
             while not self._stop.is_set():
                 now = time.monotonic()
+                if not self.cfg.get("output_enabled", True):
+                    # Output off (a console has the rig): close the sender,
+                    # which tells sACN receivers we've gone, and send nothing.
+                    if self._sender:
+                        self._sender.close()
+                        self._sender = None
+                    next_open = now
+                    if watchdog_period and now >= next_watchdog:
+                        sd_notify("WATCHDOG=1")
+                        next_watchdog = now + watchdog_period
+                    self._stop.wait(0.2)
+                    continue
                 if self._rebind.is_set():
                     self._rebind.clear()
                     if self._sender:

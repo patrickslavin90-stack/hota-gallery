@@ -915,6 +915,7 @@
     try {
       const st = await (await fetch("/api/status", { cache: "no-store" })).json();
       showParked(st.overrides || 0);
+      if (typeof st.output_live === "boolean") showOutputOff();
       if (st.battle && !battleUi.timer) { showBattle(st.battle); pollBattle(); } else if (!st.battle) showBattle(null);
       if (Date.now() - lastLookEdit < 3000) return; // a save may still be on its way
       if (JSON.stringify(st.current_look) !== JSON.stringify(cfg.current_look)) { cfg.current_look = st.current_look; updateTarget(); }
@@ -1701,7 +1702,7 @@
     $("#settingsSub").textContent = api.kind === "controller"
       ? "Device and network settings for the lighting controller."
       : "You're in the demo. Settings are saved in this browser, and network details need the real controller.";
-    renderDevice(); renderRemote(); renderArtnet(); renderPeers(); renderConfigCard(); renderFixtures();
+    renderDevice(); renderRemote(); renderArtnet(); renderPeers(); renderBattleCard(); renderConfigCard(); renderFixtures();
   }
 
   // "Scan to connect": a QR code for the address this page is live on right
@@ -1983,6 +1984,7 @@
           h("td", { class: "num" + (u.max_address > 512 ? " err-text" : ""), text: u.max_address > 512 ? `${u.max_address} (over 512)` : u.max_address })))))),
       h("p", { class: "hint", text: "sACN receivers don't answer a scan the way Art-Net nodes do, so this can't check that the lights are listening. Universes are numbered from 1, the same as on the console." }),
       netSection,
+      outputControls(),
     );
     renderLightingNetwork(netSection);
   }
@@ -2063,7 +2065,11 @@
     if (!st || !st.active && !st.starts_in) { pill.hidden = true; return; }
     pill.hidden = false;
     const names = st.players, sc = st.score;
-    pill.querySelector("span").textContent = st.starts_in > 0
+    pill.querySelector("span").textContent = st.style === "crowd"
+      ? (st.winner ? `Crowd battle: ${st.winner === "left" ? "Left" : "Right"} wins!`
+        : st.starts_in > 0 ? `Crowd battle starts in ${Math.ceil(st.starts_in)} s - ${st.players.left + st.players.right} phones in`
+        : `Crowd battle: Left ${st.players.left} · Right ${st.players.right} tapping`)
+      : st.starts_in > 0
       ? `Light battle starts in ${Math.ceil(st.starts_in)} s`
       : st.style === "call"
         ? (st.finale ? "Light battle: everyone together!" : st.turn != null ? `Light battle: ${names[st.turn]}'s move` : "Light battle: get ready")
@@ -2081,9 +2087,127 @@
     if (st && (st.active || st.starts_in)) battleUi.timer = setTimeout(pollBattle, 700);
   }
   document.getElementById("battlePill").addEventListener("click", async () => {
+    if (battleUi.last && battleUi.last.style === "crowd") { showCrowdQr(); return; }
     if (!(await ask({ title: "Stop the light battle?", message: "Every building goes back to its own look straight away.", ok: "Stop battle", danger: true }))) return;
     try { await api.stopBattle(); showBattle(null); toast("Light battle stopped"); } catch (e) { toast(errText(e), true); }
   });
+  // Crowd battle (crowd.py): the audience's phones play tug of war on this
+  // controller's lights. A big QR code takes them to /crowd.
+  async function crowdUrl() {
+    // On the kiosk the page is at localhost, which phones can't reach -
+    // use the controller's Wi-Fi address instead, as Scan to connect does.
+    let host = location.host;
+    if (isLocalHost) {
+      try { const st = await api.artnetStatus(); const ip = st && (st.wifi_ip || st.effective_bind_ip); if (ip) host = `${ip}:${st.web_port || location.port || 8080}`; } catch { /* keep host */ }
+    }
+    return `http://${host}/crowd`;
+  }
+  async function showCrowdQr() {
+    const url = await crowdUrl();
+    const box = h("div", { style: "display:flex;flex-direction:column;align-items:center;gap:10px" },
+      h("div", { style: "display:flex;justify-content:center" }, buildQrSvg(url, 9)),
+      h("p", { style: "margin:0;font-size:20px;font-weight:600;text-align:center", text: "Scan to join the light battle!" }),
+      h("p", { class: "hint", style: "margin:0;text-align:center", text: `Pick a side and tap as fast as you can. Or open ${url.replace("http://", "")} on a phone on the ${VENUE.wifi}.` }));
+    const stopBtn = h("button", { type: "button", class: "btn danger-fill", text: "Stop battle" });
+    const form = h("form", { method: "dialog", class: "dlg-body" },
+      h("h3", { class: "dlg-title", id: "crowdTitle", text: "Crowd battle" }), box,
+      h("div", { class: "dlg-actions" }, stopBtn, h("button", { type: "submit", class: "btn primary", text: "Close" })));
+    const dlg = h("dialog", { class: "dlg", "aria-labelledby": "crowdTitle", style: "max-width:560px" }, form);
+    const close = () => { dlg.close(); dlg.remove(); };
+    form.addEventListener("submit", e => { e.preventDefault(); close(); });
+    dlg.addEventListener("cancel", e => { e.preventDefault(); close(); });
+    stopBtn.addEventListener("click", async () => { try { await api.stopBattle(); showBattle(null); } catch (e) { toast(errText(e), true); } close(); });
+    document.body.append(dlg);
+    dlg.showModal();
+  }
+
+  // Output on/off and sACN priority (for handing the rig to a console).
+  function showOutputOff() {
+    const el = document.getElementById("outputOff");
+    if (el) el.hidden = api.kind !== "controller" || cfg.output_enabled !== false;
+  }
+  function outputControls() {
+    const on = cfg.output_enabled !== false;
+    const toggle = h("button", { type: "button", class: `btn sm${on ? "" : " primary"}`, text: on ? "Turn output off" : "Turn output on" });
+    toggle.addEventListener("click", async () => {
+      const turningOff = on;
+      const ok = await ask(turningOff
+        ? { title: "Turn the lighting output off?", message: "This controller stops sending to the lights altogether, and tells the receivers it's gone, so a console can take the rig. Looks, schedules and battles carry on in the drawing but nothing goes out until you turn it back on.", ok: "Turn output off", danger: true }
+        : { title: "Turn the lighting output back on?", message: "This controller starts sending to the lights again straight away.", ok: "Turn output on" });
+      if (!ok) return;
+      try { cfg = await api.putConfig({ ...cfg, output_enabled: !turningOff }); toast(turningOff ? "Lighting output is off" : "Lighting output is on"); }
+      catch (e) { toast(errText(e), true); }
+      showOutputOff(); renderArtnet();
+    });
+    const pri = cfg.sacn_priority ?? 100;
+    const presets = [[100, "Normal (100)"], [50, "Low (50) - a console at 100 wins"], [10, "Lowest (10)"]];
+    if (!presets.some(([v]) => v === pri)) presets.push([pri, `Custom (${pri})`]);
+    const priSel = h("select", { id: "sacnPri", "aria-label": "sACN priority" }, presets.map(([v, t]) => h("option", { value: v, text: t, selected: v === pri })));
+    priSel.addEventListener("change", async () => {
+      try { cfg = await api.putConfig({ ...cfg, sacn_priority: +priSel.value }); toast(`sACN priority is now ${cfg.sacn_priority}`); }
+      catch (e) { toast(errText(e), true); }
+      renderArtnet();
+    });
+    return h("div", null,
+      h("h4", { class: "group-lbl", style: "margin-top:18px", text: "Sharing the rig with a console" }),
+      h("p", { class: "hint", style: "margin-top:0", text: "Receivers follow whichever source has the highest priority. Set this lower than the console (usually 100) and the console wins whenever it's sending; when it stops, this controller takes over again. Or turn the output off entirely." }),
+      h("div", { class: "field" }, h("label", { for: "sacnPri", text: "Priority" }), priSel),
+      h("div", { class: "field" }, h("label", { text: "Output" }),
+        h("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" },
+          h("span", { class: on ? "conn-summary ok" : "conn-summary bad", text: on ? "On" : "Off - nothing is being sent" }), toggle)));
+  }
+
+  // Nightly light battle (Store.auto_battle_tick) and the all-time score.
+  async function renderBattleCard() {
+    const card = $("#battleCard");
+    if (!card) return;
+    if (api.kind !== "controller") { card.replaceChildren(); card.hidden = true; return; }
+    let data = null, peers = [];
+    try { peers = await api.getPeers(); } catch { /* no peers listed */ }
+    try { data = await (await fetch("/api/battle/record", { cache: "no-store" })).json(); } catch { data = { record: {}, auto: {} }; }
+    const auto = data.auto || {};
+    const me = venueTitle(venue);
+    const opponents = peers.filter(p => p.battle_capable || p.name === auto.opponent);
+    const opp = h("select", { id: "bOpp", "aria-label": "Opponent" },
+      opponents.length ? opponents.map(p => h("option", { value: p.name, text: p.name, selected: p.name === (auto.opponent || (venue === "gallery" ? "Outdoor stage" : "Gallery")) }))
+        : h("option", { value: "", text: "No other controller can battle yet" }));
+    const time = h("input", { type: "time", id: "bTime", value: auto.time || "19:30", "aria-label": "Time" });
+    const pts = h("select", { id: "bPts", "aria-label": "Points to win" }, [1, 3, 5].map(n => h("option", { value: n, text: `First to ${n}`, selected: n === (auto.points_to_win || 3) })));
+    const on = !!auto.enabled;
+    const toggle = h("button", { type: "button", class: `btn sm ${on ? "" : "primary"}`, text: on ? "Turn off" : "Turn on", disabled: !opponents.length });
+    const save = async enabled => {
+      try {
+        const res = await fetch("/api/battle/auto?both=1", { method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled, opponent: opp.value || null, time: time.value || "19:30", points_to_win: +pts.value }) });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || res.statusText);
+        toast(enabled ? `Nightly light battle on: ${me} vs ${opp.value} at ${time.value}` : "Nightly light battle off (both sides)");
+      } catch (e) { toast(errText(e), true); }
+      renderBattleCard();
+    };
+    toggle.addEventListener("click", () => save(!on));
+    [time, pts, opp].forEach(el => el.addEventListener("change", () => { if (on) save(true); }));
+    const rows = Object.entries(data.record || {}).map(([pair, tally]) => {
+      const names = Object.keys(tally), total = names.reduce((n, k) => n + tally[k], 0);
+      return h("div", { class: "node", style: "display:flex;align-items:center;gap:12px" },
+        h("b", { style: "flex:1", text: names.map(n => `${n} ${tally[n]}`).join("  –  ") }),
+        h("span", { class: "hint", style: "margin:0", text: `${total} match${total === 1 ? "" : "es"}` }));
+    });
+    card.hidden = false;
+    card.replaceChildren(
+      h("header", null, h("h3", { text: "Nightly light battle" }),
+        h("span", { class: `conn-summary ${on ? "ok" : ""}`, text: on ? `On - ${auto.time} vs ${auto.opponent}` : "Off" }),
+        h("div", { class: "actions" }, toggle)),
+      h("div", { class: "body" },
+        h("p", { class: "hint", style: "margin-top:0", text: "An easter egg: a game of ping-pong between the buildings every night - a ball of light crossing each in turn, faster and faster, until one misses. The switch turns it on or off for both sides; while it's off here, this controller won't play." }),
+        h("div", { class: "field" }, h("label", { for: "bOpp", text: "Against" }), opp),
+        h("div", { class: "field" }, h("label", { for: "bTime", text: "Every night at" }), time),
+        h("div", { class: "field" }, h("label", { for: "bPts", text: "Match" }), pts),
+        h("h4", { class: "group-lbl", style: "margin-top:18px", text: "All-time score" }),
+        rows.length ? h("div", { class: "nodes", style: "grid-template-columns:1fr" }, rows)
+          : h("p", { class: "hint", style: "margin:0", text: "No finished matches yet." })));
+  }
+
   async function openBattleDialog() {
     if (api.kind !== "controller") { toast("Light battles need the real controllers - not available in the demo.", true); return; }
     let peers = [];
@@ -2101,15 +2225,20 @@
     });
     const points = h("select", { "aria-label": "Points to win" }, [1, 3, 5].map(n => h("option", { value: n, text: `First to ${n}`, selected: n === 3 })));
     const styleSel = h("select", { "aria-label": "Battle style" },
-      h("option", { value: "pingpong", text: "Ping-pong" }), h("option", { value: "call", text: "Call and response" }));
+      h("option", { value: "pingpong", text: "Ping-pong" }), h("option", { value: "call", text: "Call and response" }),
+      h("option", { value: "crowd", text: "Crowd battle (audience phones)" }));
     const blurb = h("p", { class: "dlg-msg" });
     const pointsField = h("div", { class: "field" }, h("label", { text: "Match" }), points);
+    const playersBox = h("div", { style: "margin:10px 0" }, ...boxes);
     const describe = () => {
-      const call = styleSel.value === "call";
-      blurb.textContent = call
+      const call = styleSel.value === "call", crowdMode = styleSel.value === "crowd";
+      playersBox.hidden = crowdMode;
+      blurb.textContent = crowdMode
+        ? `The audience plays, on ${me}'s lights: people scan a QR code, pick Left or Right, and tap as fast as they can to push the line across the building. Push it all the way and your colour floods the building. Up to 2 minutes.`
+        : call
         ? "The buildings take turns: one plays a move in its colour, the next answers with a faster, wilder one, round after round, then everyone plays together for the finale. About 40 seconds."
         : "A ball of light crosses each building and gets returned to the next, faster every time, until someone misses. First to the target wins and floods every building in its colour.";
-      pointsField.hidden = call;
+      pointsField.hidden = call || crowdMode;
     };
     styleSel.addEventListener("change", describe);
     describe();
@@ -2120,7 +2249,7 @@
       h("div", { class: "field" }, h("label", { text: "Style" }), styleSel),
       blurb,
       h("p", { class: "hint", text: "The real lights on every player take part, and each goes back to its own look at the end." }),
-      h("div", { style: "margin:10px 0" }, ...boxes),
+      playersBox,
       pointsField,
       err,
       h("div", { class: "dlg-actions" }, h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => close() }), start));
@@ -2129,6 +2258,11 @@
     dlg.addEventListener("cancel", e => { e.preventDefault(); close(); });
     form.addEventListener("submit", async e => {
       e.preventDefault();
+      if (styleSel.value === "crowd") {
+        try { const st = await api.startCrowd(); close(); showBattle(st); pollBattle(); showCrowdQr(); }
+        catch (ex) { err.textContent = errText(ex); }
+        return;
+      }
       const players = [...form.querySelectorAll("input[type=checkbox]:checked")].map(cb => cb.dataset.key);
       if (players.length < 2) { err.textContent = "Pick at least two players."; return; }
       start.disabled = true; start.textContent = "Starting…"; err.textContent = "";
@@ -2153,6 +2287,7 @@
   // ===================================================================
   const dmx = { universe: null, sel: new Set(), anchor: null, data: null, timer: 0, cells: [] };
   $("#parked").addEventListener("click", () => showTab("channels"));
+  $("#outputOff").addEventListener("click", () => showTab("settings"));
   // A function declaration looking the pill up itself, so the status poll
   // can call it however early it runs.
   function showParked(n) {

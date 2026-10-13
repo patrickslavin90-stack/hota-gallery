@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import threading
+import time
 
 from .config import ConfigError, load_config
 from .engine import Engine
@@ -58,6 +59,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     clock_chime = ClockChime(httpd.store.get_config, httpd.store.set_fixture_looks)
     clock_chime.start_background()
+
+    # Nightly light battle (Store.auto_battle_tick), checked every 5 s.
+    def battle_loop() -> None:
+        while True:
+            time.sleep(5)
+            try:
+                httpd.store.auto_battle_tick()
+            except Exception:  # noqa: BLE001 - never take the controller down over a game
+                logging.getLogger("hota_gallery").exception("light battle easter egg")
+    threading.Thread(target=battle_loop, name="battle-auto", daemon=True).start()
 
     from .engine import sd_notify
     sd_notify("READY=1\nSTATUS=serving")
