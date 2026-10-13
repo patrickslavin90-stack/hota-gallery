@@ -69,12 +69,15 @@ def handle(h: BaseHTTPRequestHandler, method: str, board: PasteBoard = BOARD) ->
         return _send(h, 200, PAGE.encode(), "text/html; charset=utf-8")
     # Plain text of the newest paste (or /raw/<id>), for a terminal where
     # pasting doesn't work:  wget -qO- <host>:8090/raw | sh
+    # Only pastes made on the board's own machine count: output pasted back
+    # from another machine must never be what the next `| sh` runs.
     if method == "GET" and (path == "/raw" or path.startswith("/raw/") or path.startswith("/paste/raw")):
-        items = board.list()
+        own = {"127.0.0.1", h.connection.getsockname()[0]}
+        items = [i for i in board.list() if i["from"] in own]
         tail = path.rstrip("/").rsplit("/", 1)[1]
         pick = next((i for i in items if str(i["id"]) == tail), None) if tail.isdigit() else (items[0] if items else None)
         if not pick:
-            return _send(h, 404, b"echo 'Nothing on the paste board'\n", "text/plain; charset=utf-8")
+            return _send(h, 404, b"echo 'Nothing on the paste board from its own machine'\n", "text/plain; charset=utf-8")
         return _send(h, 200, (pick["text"].replace("\r\n", "\n").rstrip("\n") + "\n").encode(), "text/plain; charset=utf-8")
     if not path.startswith("/api/paste"):
         return False
