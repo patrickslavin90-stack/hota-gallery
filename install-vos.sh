@@ -118,6 +118,16 @@ X-GNOME-Autostart-enabled=true
 NoDisplay=true
 EOF
   chown "$KIOSK_USER":"$(id -gn "$KIOSK_USER")" "$HOME_DIR/.config/autostart/hota-vos-kiosk.desktop"
+  # Applications-menu entry to go back into the kiosk after Alt+F4.
+  cat > /usr/share/applications/hota-vos-kiosk.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=HOTA lighting (kiosk)
+Comment=Open the outdoor stage lighting control full-screen
+Exec=/opt/hota-vos/vos-kiosk.sh
+Icon=video-display
+Categories=Utility;
+EOF
 
   # Log that user in automatically, so the screen comes up after a power cut.
   if [ -f /etc/gdm3/custom.conf ] || [ -f /etc/gdm/custom.conf ]; then
@@ -152,6 +162,7 @@ EOF
     echo "No browser found for the kiosk - install one, e.g.  sudo apt install chromium" >&2
   else
     echo "Kiosk set up for $KIOSK_USER with $KIOSK_BROWSER - it opens full-screen at the next login."
+    echo "  Alt+F4 exits to the desktop; 'HOTA lighting (kiosk)' in the menu goes back in."
   fi
 fi
 

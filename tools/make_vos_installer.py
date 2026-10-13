@@ -47,9 +47,13 @@ Kiosk (full-screen control on the PC's own screen, like the gallery):
 
    logs that user in automatically at boot and opens the control
    full-screen, with no PIN asked on the PC itself. Needs a browser
-   (Chromium, Chrome or Firefox). Reboot to see it. To leave the kiosk:
-   Alt+F4 closes it for a moment (it reopens), or remove
-   ~/.config/autostart/hota-vos-kiosk.desktop to turn it off.
+   (Chromium, Chrome or Firefox). Reboot to see it.
+
+   Leave the kiosk: Alt+F4 - you're back at the normal desktop.
+   Go back in: "HOTA lighting (kiosk)" in the applications menu, or log
+   out and in, or reboot. (It only reopens on its own if the browser
+   crashes.) To stop it starting at login, delete
+   ~/.config/autostart/hota-vos-kiosk.desktop
 
 Paste board (for setting up machines):
 

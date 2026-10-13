@@ -26,7 +26,9 @@ while [ "$i" -lt 90 ]; do
   sleep 1
 done
 
-# First browser found wins. Relaunch if it's ever closed or crashes.
+# First browser found wins. Relaunch it if it crashes; closing it on
+# purpose (Alt+F4) exits the kiosk to the desktop. "HOTA lighting (kiosk)"
+# in the applications menu, logging in again or a reboot brings it back.
 for b in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge firefox; do
   if command -v "$b" >/dev/null 2>&1; then BROWSER=$b; break; fi
 done
@@ -44,5 +46,7 @@ while true; do
         --disable-session-crashed-bubble --check-for-update-interval=31536000 \
         --overscroll-history-navigation=0 "$URL" ;;
   esac
+  # Exit status 0 = closed normally (Alt+F4), anything else = crashed.
+  [ $? -eq 0 ] && exit 0
   sleep 2
 done
