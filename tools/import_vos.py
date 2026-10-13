@@ -208,6 +208,7 @@ def main() -> int:
     validate_config(cfg)
     OUT_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     OUT_CONFIG.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    OUT_DEMO.write_text(json.dumps(cfg) + "\n", encoding="utf-8")
 
     xs = [p[0] for p in pos3d.values()]
     OUT_3D.write_text(json.dumps({
