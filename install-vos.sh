@@ -7,6 +7,11 @@
 #                                     # you pick the lighting network card
 #   sudo sh install-vos.sh --live     # send sACN straight away, on the
 #                                     # card the PC picks automatically
+#   sudo sh install-vos.sh --kiosk USER
+#                                     # also open the control full-screen
+#                                     # on this PC's screen, logging USER in
+#                                     # automatically at boot (like the
+#                                     # gallery Pi's kiosk)
 #
 # Safe to run again to update: the program is replaced, but an existing
 # config (looks, schedules, presets) is kept unless --reset-config is given.
@@ -15,13 +20,22 @@ set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 LIVE=0
 RESET=0
-for arg in "$@"; do
-  case "$arg" in
+KIOSK_USER=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --live) LIVE=1 ;;
     --reset-config) RESET=1 ;;
-    *) echo "unknown option: $arg" >&2; exit 2 ;;
+    --kiosk)
+      [ $# -ge 2 ] || { echo "--kiosk needs the desktop user to log in, e.g. --kiosk $(logname 2>/dev/null || echo USER)" >&2; exit 2; }
+      KIOSK_USER=$2; shift ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
+  shift
 done
+if [ -n "$KIOSK_USER" ] && ! id "$KIOSK_USER" >/dev/null 2>&1; then
+  echo "No user called $KIOSK_USER on this PC." >&2
+  exit 1
+fi
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run this with sudo:  sudo sh $0 $*" >&2
@@ -88,6 +102,57 @@ if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: a
   ufw allow "$PORT/tcp" >/dev/null && echo "Opened port $PORT in the firewall (ufw)."
 elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
   firewall-cmd --permanent --add-port="$PORT/tcp" >/dev/null && firewall-cmd --reload >/dev/null && echo "Opened port $PORT in the firewall (firewalld)."
+fi
+
+# Kiosk: full-screen browser on this PC's display at login.
+if [ -n "$KIOSK_USER" ]; then
+  install -m 0755 "$HERE/vos-kiosk.sh" /opt/hota-vos/vos-kiosk.sh
+  HOME_DIR=$(getent passwd "$KIOSK_USER" | cut -d: -f6)
+  install -d -o "$KIOSK_USER" -g "$(id -gn "$KIOSK_USER")" "$HOME_DIR/.config" "$HOME_DIR/.config/autostart"
+  cat > "$HOME_DIR/.config/autostart/hota-vos-kiosk.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=HOTA outdoor stage kiosk
+Exec=/opt/hota-vos/vos-kiosk.sh
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+EOF
+  chown "$KIOSK_USER":"$(id -gn "$KIOSK_USER")" "$HOME_DIR/.config/autostart/hota-vos-kiosk.desktop"
+
+  # Log that user in automatically, so the screen comes up after a power cut.
+  if [ -f /etc/gdm3/custom.conf ] || [ -f /etc/gdm/custom.conf ]; then
+    GDM=/etc/gdm3/custom.conf; [ -f "$GDM" ] || GDM=/etc/gdm/custom.conf
+    [ -f "$GDM.before-hota-vos" ] || cp "$GDM" "$GDM.before-hota-vos"  # original kept, comments and all
+    python3 - "$GDM" "$KIOSK_USER" <<'EOF'
+import configparser, sys
+path, user = sys.argv[1], sys.argv[2]
+c = configparser.ConfigParser(strict=False, interpolation=None)
+c.optionxform = str
+c.read(path)
+if not c.has_section("daemon"):
+    c.add_section("daemon")
+c.set("daemon", "AutomaticLoginEnable", "True")
+c.set("daemon", "AutomaticLogin", user)
+with open(path, "w") as f:
+    c.write(f)
+EOF
+    echo "Auto-login set for $KIOSK_USER (GDM)."
+  elif [ -d /etc/lightdm ]; then
+    install -d /etc/lightdm/lightdm.conf.d
+    printf '[Seat:*]\nautologin-user=%s\n' "$KIOSK_USER" > /etc/lightdm/lightdm.conf.d/50-hota-vos-autologin.conf
+    echo "Auto-login set for $KIOSK_USER (LightDM)."
+  else
+    echo "Couldn't set auto-login for this login screen - turn it on in the desktop's user settings." >&2
+  fi
+  KIOSK_BROWSER=""
+  for b in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge firefox; do
+    if command -v "$b" >/dev/null 2>&1; then KIOSK_BROWSER=$b; break; fi
+  done
+  if [ -z "$KIOSK_BROWSER" ]; then
+    echo "No browser found for the kiosk - install one, e.g.  sudo apt install chromium" >&2
+  else
+    echo "Kiosk set up for $KIOSK_USER with $KIOSK_BROWSER - it opens full-screen at the next login."
+  fi
 fi
 
 sleep 3

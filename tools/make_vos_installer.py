@@ -41,6 +41,16 @@ On the Linux PC:
    (Or install with  sudo sh install-vos.sh --live  to send sACN straight
    away on whichever network card the PC picks.)
 
+Kiosk (full-screen control on the PC's own screen, like the gallery):
+
+       sudo sh install-vos.sh --kiosk $USER
+
+   logs that user in automatically at boot and opens the control
+   full-screen, with no PIN asked on the PC itself. Needs a browser
+   (Chromium, Chrome or Firefox). Reboot to see it. To leave the kiosk:
+   Alt+F4 closes it for a moment (it reopens), or remove
+   ~/.config/autostart/hota-vos-kiosk.desktop to turn it off.
+
 To update later, run the installer from a newer USB copy: the program is
 replaced and your looks, schedules and presets are kept.
 
@@ -56,7 +66,7 @@ def main() -> int:
     shutil.copytree(ROOT / "hota_gallery", out / "hota_gallery", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     shutil.copy2(ROOT / "data" / "vos" / "config.json", out / "config.json")
     # Linux line endings, whatever git checked out on Windows.
-    for name in ("install-vos.sh", "hota-vos.service"):
+    for name in ("install-vos.sh", "hota-vos.service", "vos-kiosk.sh"):
         (out / name).write_bytes((ROOT / name).read_bytes().replace(b"\r\n", b"\n"))
     (out / "README.txt").write_text(README, encoding="utf-8", newline="\n")
     size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file())
