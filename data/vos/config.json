@@ -11087,6 +11087,25 @@
       "zone": "Left dots"
     },
     {
+      "name": "PS LED Dot 27",
+      "led_type": "RGB",
+      "universe": 15,
+      "address": 0,
+      "led_count": 1,
+      "channels_per_led": 3,
+      "points": [
+        [
+          790.0,
+          270.0
+        ],
+        [
+          790.0,
+          270.0
+        ]
+      ],
+      "zone": "Right dots"
+    },
+    {
       "name": "PS LED Dot 26",
       "led_type": "RGB",
       "universe": 15,
@@ -17594,6 +17613,16 @@
           [
             30.0,
             -70.0
+          ]
+        ],
+        "15:0": [
+          [
+            790.0,
+            270.0
+          ],
+          [
+            790.0,
+            270.0
           ]
         ],
         "15:3": [

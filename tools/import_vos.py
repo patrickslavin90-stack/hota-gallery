@@ -2,6 +2,7 @@
 lighting department's files in data/venue_assets/vos/:
 
   vos strips and dots.mvr    patch: 609 RGB pixels (3 ch), sACN universes 11-16
+                             (+ PS LED Dot 27, missing from it - see PATCH_FIXES)
   facade strip.xml           grandMA3 layout: 2D position of every strip pixel
   facade dot.xml             grandMA3 layout: 2D position of every dot
   HOTA - VOS - LX PLAN.xml   Vectorworks export: real 3D position of the dots
@@ -10,8 +11,8 @@ The MVR carries the patch only (no <Matrix> positions), so 2D comes from the
 MA layouts, joined to the patch by fixture name. (Not FixtureID: "Strip D
 2-160" have different IDs in the layout than in the patch.)
 
-3D: dots use their real Vectorworks position, joined by absolute DMX
-address. Strips aren't in the Vectorworks file, so their front-on position
+3D: dots use their real Vectorworks position (left side joined by DMX
+address, right side by position - see the comment in main). Strips aren't in the Vectorworks file, so their front-on position
 (X across, Z up) comes from a least-squares fit of the MA layout to the
 Vectorworks dots, and their depth (Y) from the facade's plan line, which
 the dots also give us: flat across the middle, angled back ~35 deg at
@@ -27,6 +28,7 @@ hota_gallery/static/vos-demo-config.json (demo mode, ?venue=vos).
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -56,6 +58,14 @@ ZONES = [
 ]
 
 
+# Dots missing from the MVR patch. There are 27 dots a side: the left run
+# is LED Dot 1-27 at 15.001-081, but the MVR stops the right run at PS LED
+# Dot 26, leaving 16.001-003 empty. The MA layout and Vectorworks both have
+# a 27th right-hand dot (far right, bottom), and Vectorworks addresses it
+# 7681 = 16.001. Drop an entry once the MA patch has it.
+PATCH_FIXES = {"PS LED Dot 27": 7681}
+
+
 def zone_of(name: str) -> str:
     for zone, rx in ZONES:
         if rx.match(name):
@@ -82,17 +92,19 @@ def read_ma_layout(path: Path) -> dict:
     return {e.get("Name"): (int(e.get("PosX")), int(e.get("PosY"))) for e in root.iter("Element")}
 
 
-def read_vectorworks(path: Path) -> dict:
-    """1-based absolute address -> (X, Y, Z) mm, for every addressed instrument."""
+def read_vectorworks(path: Path) -> list:
+    """[(1-based absolute address, or 0 if unaddressed, (X, Y, Z) mm)] for
+    every instrument with a position."""
     text = path.read_text(encoding="utf-8", errors="replace")
-    out = {}
+    out = []
     for _, block in re.findall(r"<(UID_[0-9_]+)>(.*?)</\1>", text, re.S):
         def field(k):
             m = re.search(rf"<{k}>([^<]*)<", block)
             return m.group(1) if m else ""
         addr = field("Absolute_Address")
-        if addr.isdigit() and int(addr) > 0 and field("X_Location_mm"):
-            out[int(addr)] = tuple(float(field(k)) for k in ("X_Location_mm", "Y_Location_mm", "Z_Location_mm"))
+        if field("X_Location_mm"):
+            xyz = tuple(float(field(k)) for k in ("X_Location_mm", "Y_Location_mm", "Z_Location_mm"))
+            out.append((int(addr) if addr.isdigit() else 0, xyz))
     return out
 
 
@@ -145,7 +157,12 @@ def interp(knots, x):
 def main() -> int:
     patch = read_mvr(SRC / "vos strips and dots.mvr")
     layout = {**read_ma_layout(SRC / "facade strip.xml"), **read_ma_layout(SRC / "facade dot.xml")}
-    vw = read_vectorworks(SRC / "HOTA - VOS - LX PLAN.xml")
+    vw_all = read_vectorworks(SRC / "HOTA - VOS - LX PLAN.xml")
+    vw = {a: xyz for a, xyz in vw_all if a}
+    for name, absolute in PATCH_FIXES.items():
+        if name not in patch:
+            patch[name] = absolute
+            print(f"patch fix: added {name} at {(absolute - 1) // 512 + 1}.{(absolute - 1) % 512 + 1:03d} (missing from the MVR)")
 
     unplaced = sorted(set(patch) - set(layout))
     if unplaced:
@@ -164,22 +181,37 @@ def main() -> int:
         })
 
     # --- 3D ---------------------------------------------------------------
-    pairs = [(layout[n], vw[a]) for n, a in patch.items() if "Dot" in n and a in vw]
-    fit = lstsq_affine([l for l, _ in pairs], [(q[0], q[2]) for _, q in pairs])
-    to_xz = lambda x, y: (fit[0][0] * x + fit[0][1] * y + fit[0][2], fit[1][0] * x + fit[1][1] * y + fit[1][2])
-    resid = [((to_xz(*l)[0] - q[0]) ** 2 + (to_xz(*l)[1] - q[2]) ** 2) ** 0.5 for l, q in pairs]
+    # Left dots: Vectorworks and the MVR agree on addresses. Right dots:
+    # Vectorworks numbers the whole run one fixture (3 ch) lower than the
+    # MVR - its 16.076 is the MVR's PS LED Dot 1 at 16.079, down to its
+    # 16.001 being PS LED Dot 26 - and leaves the 27th, at the far right,
+    # unaddressed. The MVR is what the console runs, so it sets the DMX
+    # addresses; Vectorworks only supplies where each dot is.
+    dot_pos = {}
+    for n, a in patch.items():
+        z = zone_of(n)
+        if z == "Left dots" and a in vw:
+            dot_pos[n] = vw[a]
+        elif z == "Right dots" and a - 3 in vw and n != "PS LED Dot 27":
+            dot_pos[n] = vw[a - 3]
+    far_right = [q for a, q in vw_all if a == 0 and q[0] > 0]
+    if len(far_right) == 1:
+        dot_pos["PS LED Dot 27"] = far_right[0]
+    pairs = [(layout[n], q) for n, q in dot_pos.items()]
+    c = lstsq_affine([l for l, _ in pairs], [(q[0], q[2]) for _, q in pairs])
+    to_xz = lambda x, y: (c[0][0] * x + c[0][1] * y + c[0][2], c[1][0] * x + c[1][1] * y + c[1][2])
+    resid = [math.hypot(to_xz(*l)[0] - q[0], to_xz(*l)[1] - q[2]) for l, q in pairs]
     knots = plan_line([(q[0], q[1]) for _, q in pairs])
 
     pos3d = {}
     for f in fixtures:
         key = f"{f['universe']}:{f['address']}"
-        absolute = f["universe"] * 512 + f["address"] + 1
-        if absolute in vw and f["zone"].endswith("dots"):
-            pos3d[key] = [round(v) for v in vw[absolute]]
+        if f["name"] in dot_pos:
+            pos3d[key] = [round(v) for v in dot_pos[f["name"]]]
         else:
             X, Z = to_xz(*layout[f["name"]])
             pos3d[key] = [round(X), round(interp(knots, X)), round(Z)]
-    estimated_dots = [f["name"] for f in fixtures if "Dot" in f["name"] and f["universe"] * 512 + f["address"] + 1 not in vw]
+    estimated_dots = [f["name"] for f in fixtures if "Dot" in f["name"] and f["name"] not in dot_pos]
     vw_unpatched = sorted(a for a in vw if a not in set(patch.values()))
 
     # --- config -----------------------------------------------------------
