@@ -130,8 +130,12 @@ Categories=Utility;
 EOF
 
   # Log that user in automatically, so the screen comes up after a power cut.
-  if [ -f /etc/gdm3/custom.conf ] || [ -f /etc/gdm/custom.conf ]; then
-    GDM=/etc/gdm3/custom.conf; [ -f "$GDM" ] || GDM=/etc/gdm/custom.conf
+  # GDM keeps it in custom.conf on Ubuntu/Fedora, daemon.conf on Debian.
+  GDM=""
+  for f in /etc/gdm3/custom.conf /etc/gdm3/daemon.conf /etc/gdm/custom.conf; do
+    if [ -f "$f" ]; then GDM=$f; break; fi
+  done
+  if [ -n "$GDM" ]; then
     [ -f "$GDM.before-hota-vos" ] || cp "$GDM" "$GDM.before-hota-vos"  # original kept, comments and all
     python3 - "$GDM" "$KIOSK_USER" <<'EOF'
 import configparser, sys
