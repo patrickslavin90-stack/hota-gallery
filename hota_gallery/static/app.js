@@ -370,13 +370,14 @@
   const tickClock = () => { clockEl.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); };
   tickClock(); setInterval(tickClock, 1000);
 
-  const tabs = { live: $("#view-live"), schedules: $("#view-schedules"), settings: $("#view-settings") };
+  const tabs = { live: $("#view-live"), schedules: $("#view-schedules"), channels: $("#view-channels"), settings: $("#view-settings") };
   function showTab(name) {
     if (!tabs[name]) name = "live";
     for (const [k, el] of Object.entries(tabs)) el.hidden = k !== name;
     document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
     if (name === "schedules") openSchedules();
     if (name === "settings") openSettings();
+    if (name === "channels") openChannels();
     if (name === "live") requestAnimationFrame(resize);
     if (location.hash.slice(1) !== name) history.replaceState(null, "", name === "live" ? location.pathname : `#${name}`);
   }
@@ -911,9 +912,10 @@
   // Keeps the "own look" notice honest when the scheduler, randomiser or
   // another browser changes per-fixture looks behind this page's back.
   async function refreshCurrentLook() {
-    if (Date.now() - lastLookEdit < 3000) return; // a save may still be on its way
     try {
       const st = await (await fetch("/api/status", { cache: "no-store" })).json();
+      showParked(st.overrides || 0);
+      if (Date.now() - lastLookEdit < 3000) return; // a save may still be on its way
       if (JSON.stringify(st.current_look) !== JSON.stringify(cfg.current_look)) { cfg.current_look = st.current_look; updateTarget(); }
     } catch { /* the preview poll reports outages */ }
   }
@@ -949,7 +951,7 @@
   function describe(L) {
     const f = cfg.fixtures[L.fi];
     const c = live.preview && live.preview[L.fi] && live.preview[L.fi].colors[L.i];
-    const col = c ? `R${c[0]} G${c[1]} B${c[2]}${/RGBW$/.test(f.led_type) ? ` W${c[3]}` : ""}` : "";
+    const col = c ? `R${c[0]} G${c[1]} B${c[2]}${/RGBW/.test(f.led_type) ? ` W${c[3]}` : ""}` : "";
     return `${f.name}   universe ${f.universe + 1}, address ${f.address + 1}   ${f.led_count} LED${f.led_count > 1 ? "s" : ""} ${f.led_type}   ${col}`;
   }
   let drag = null;
@@ -1941,7 +1943,7 @@
   function patchUniverses() {
     const by = new Map();
     for (const f of cfg.fixtures) {
-      const cpl = f.channels_per_led || ({ RGBW: 4, DRGBW: 5 }[f.led_type] || 3);
+      const cpl = f.channels_per_led || ({ RGBW: 4, DRGBW: 5, RGBWD: 5 }[f.led_type] || 3);
       const e = by.get(f.universe) || { universe: f.universe, fixture_count: 0, channel_count: 0, max_address: 0 };
       e.fixture_count++; e.channel_count += f.led_count * cpl; e.max_address = Math.max(e.max_address, f.address + f.led_count * cpl);
       by.set(f.universe, e);
@@ -2046,6 +2048,152 @@
           h("div", { class: "field" }, h("label", { for: "netPrefix", text: "Subnet" }), prefix),
           apply, status)
         : h("p", { class: "hint", style: "margin:0", text: "This controller has no wired network port." }));
+  }
+
+  // ===================================================================
+  // Channels: set DMX channels by hand (GET/PUT /api/dmx/<universe>).
+  // Overrides sit on top of the look, in the controller's memory only.
+  // ===================================================================
+  const dmx = { universe: null, sel: new Set(), anchor: null, data: null, timer: 0, cells: [] };
+  $("#parked").addEventListener("click", () => showTab("channels"));
+  // A function declaration looking the pill up itself, so the status poll
+  // can call it however early it runs.
+  function showParked(n) {
+    const el = document.getElementById("parked");
+    el.hidden = !n;
+    el.querySelector("span").textContent = `${n} channel${n === 1 ? "" : "s"} set by hand`;
+  }
+  async function openChannels() {
+    const card = $("#dmxCard");
+    if (api.kind !== "controller") {
+      card.replaceChildren(h("div", { class: "body" }, h("p", { class: "hint", style: "margin:0", text: "Channel control needs the controller - the demo doesn't send DMX." })));
+      return;
+    }
+    if (dmx.universe == null) dmx.universe = (patchUniverses()[0] || { universe: 0 }).universe;
+    const uniSel = h("select", { id: "dmxUni", "aria-label": "Universe" });
+    const uniOther = h("input", { type: "number", min: 1, max: 63999, style: "width:90px", "aria-label": "Other universe", placeholder: "Other" });
+    const count = h("span", { class: "hint", style: "margin:0" });
+    const releaseAll = h("button", { type: "button", class: "btn sm", text: "Release all", onclick: async () => {
+      if (!(await ask({ title: "Release every channel?", message: "Every channel set by hand, in every universe, goes back to what the look is sending.", ok: "Release all" }))) return;
+      await send({ release_all: true }); dmx.sel.clear(); renderSel();
+    } });
+    const selBox = h("div", { class: "dmx-sel" });
+    const grid = h("div", { class: "dmx-grid", role: "grid", "aria-label": "DMX channels" });
+    card.replaceChildren(h("div", { class: "body" },
+      h("div", { class: "dmx-bar" }, h("label", { for: "dmxUni", text: "Universe" }), uniSel, uniOther, count, h("span", { style: "flex:1" }), releaseAll),
+      selBox,
+      grid,
+      h("p", { class: "hint", text: "Click a channel to select it, Shift-click for a range, Ctrl-click to add one. Amber channels are set by hand; outlined ones are patched to a fixture. Hover a channel to see what's on it." })));
+    uniSel.addEventListener("change", () => { dmx.universe = +uniSel.value; dmx.sel.clear(); renderSel(); refresh(); });
+    uniOther.addEventListener("change", () => {
+      const u = Math.round(+uniOther.value);
+      if (u >= 1) { dmx.universe = u - 1; dmx.sel.clear(); uniOther.value = ""; renderSel(); refresh(); }
+    });
+
+    dmx.cells = Array.from({ length: 512 }, (_, ch) => {
+      const cell = h("div", { class: "dmx-cell", role: "gridcell", "data-ch": ch },
+        h("div", { class: "fill" }), h("span", { class: "n", text: ch + 1 }), h("span", { class: "v" }));
+      cell.addEventListener("click", e => {
+        if (e.shiftKey && dmx.anchor != null) {
+          const a = Math.min(dmx.anchor, ch), b = Math.max(dmx.anchor, ch);
+          if (!e.ctrlKey && !e.metaKey) dmx.sel.clear();
+          for (let i = a; i <= b; i++) dmx.sel.add(i);
+        } else if (e.ctrlKey || e.metaKey) {
+          if (dmx.sel.has(ch)) dmx.sel.delete(ch); else dmx.sel.add(ch);
+          dmx.anchor = ch;
+        } else {
+          dmx.sel = new Set(dmx.sel.size === 1 && dmx.sel.has(ch) ? [] : [ch]);
+          dmx.anchor = ch;
+        }
+        paint(); renderSel();
+      });
+      return cell;
+    });
+    grid.replaceChildren(...dmx.cells);
+
+    async function send(body) {
+      try { dmx.data = await api.putDmx(dmx.universe, body); paint(); }
+      catch (e) { toast(errText(e), true); }
+    }
+    let releaseBtn = null;
+    function renderSel() {
+      const chs = [...dmx.sel].sort((a, b) => a - b);
+      releaseBtn = null;
+      if (!chs.length) { selBox.replaceChildren(h("span", { class: "hint", style: "margin:0", text: "No channels selected - click one below." })); return; }
+      const d = dmx.data;
+      const cur = d ? d.values[chs[0]] : 0;
+      const label = chs.length === 1
+        ? `Channel ${chs[0] + 1}${d && d.labels[chs[0]] ? ` - ${d.labels[chs[0]]}` : ""}`
+        : `${chs.length} channels (${chs[0] + 1}–${chs[chs.length - 1] + 1})`;
+      const num = h("input", { type: "number", min: 0, max: 255, step: 1, value: cur, style: "width:80px", "aria-label": "Value" });
+      const fader = h("input", { type: "range", min: 0, max: 255, step: 1, value: cur, "aria-label": "Level" });
+      const pct = h("span", { class: "hint", style: "margin:0;width:44px", text: `${Math.round(cur / 2.55)}%` });
+      // Send while dragging, with at most one request in flight.
+      let busy = false, pending = null;
+      const setAll = async v => {
+        v = clamp(Math.round(v), 0, 255);
+        num.value = fader.value = v;
+        pct.textContent = `${Math.round(v / 2.55)}%`;
+        pending = v;
+        if (busy) return;
+        busy = true;
+        while (pending != null) {
+          const x = pending; pending = null;
+          await send({ set: Object.fromEntries(chs.map(c => [c, x])) });
+        }
+        busy = false;
+        updateRelease();
+      };
+      fader.addEventListener("input", () => setAll(+fader.value));
+      num.addEventListener("change", () => setAll(+num.value));
+      releaseBtn = h("button", { type: "button", class: "btn sm", text: "Release", title: "Back to what the look is sending",
+        onclick: async () => { await send({ release: chs }); updateRelease(); } });
+      selBox.replaceChildren(
+        h("b", { text: label }),
+        fader, num, pct,
+        h("button", { type: "button", class: "btn sm", text: "Full", onclick: () => setAll(255) }),
+        h("button", { type: "button", class: "btn sm", text: "50%", onclick: () => setAll(128) }),
+        h("button", { type: "button", class: "btn sm", text: "Off", onclick: () => setAll(0) }),
+        releaseBtn,
+        h("button", { type: "button", class: "btn sm ghost", text: "Deselect", onclick: () => { dmx.sel.clear(); paint(); renderSel(); } }));
+      updateRelease();
+    }
+    function updateRelease() {
+      if (!releaseBtn || !dmx.data) return;
+      releaseBtn.disabled = ![...dmx.sel].some(c => String(c) in dmx.data.overrides);
+    }
+    function paint() {
+      const d = dmx.data;
+      if (!d) return;
+      const unis = [...new Set([...d.universes, dmx.universe])].sort((a, b) => a - b);
+      if (uniSel.options.length !== unis.length || [...uniSel.options].some((o, i) => +o.value !== unis[i])) {
+        uniSel.replaceChildren(...unis.map(u => h("option", { value: u, text: `${u + 1}${d.universes.includes(u) ? "" : " (not patched)"}` })));
+      }
+      uniSel.value = dmx.universe;
+      const n = Object.keys(d.overrides).length;
+      count.textContent = n ? `${n} channel${n === 1 ? "" : "s"} set by hand in this universe` : "";
+      showParked(d.override_count);
+      dmx.cells.forEach((cell, ch) => {
+        const v = d.values[ch], over = String(ch) in d.overrides, lab = d.labels[ch];
+        cell.firstChild.style.height = `${(v / 255) * 100}%`;
+        cell.lastChild.textContent = v;
+        cell.classList.toggle("patched", !!lab);
+        cell.classList.toggle("over", over);
+        cell.classList.toggle("sel", dmx.sel.has(ch));
+        cell.title = `Channel ${ch + 1}: ${v}${lab ? ` - ${lab}` : " - not patched"}${over ? " (set by hand)" : ""}`;
+      });
+      updateRelease();
+    }
+    async function refresh() {
+      clearTimeout(dmx.timer);
+      if (tabs.channels.hidden) return;
+      try { dmx.data = await api.getDmx(dmx.universe); paint(); }
+      catch (e) { count.textContent = errText(e); }
+      if (!tabs.channels.hidden) dmx.timer = setTimeout(refresh, document.hidden ? 2000 : 400);
+    }
+    renderSel();
+    await refresh();
+    renderSel();
   }
 
   // Other controllers on the network (gallery, outdoor stage, building):
@@ -2223,7 +2371,7 @@
       const s = q.value.trim().toLowerCase();
       body.replaceChildren(...cfg.fixtures.filter(f => !s || `${f.name} ${f.zone} ${f.universe + 1} ${f.led_type}`.toLowerCase().includes(s)).map(f => h("tr", null,
         h("td", { text: f.name }), h("td", { text: f.zone || "–" }), h("td", { text: f.led_type }), h("td", { class: "num", text: f.led_count }),
-        h("td", { class: "num", text: f.universe + 1 }), h("td", { class: "num", text: f.address + 1 }), h("td", { class: "num", text: `${f.address + 1}–${f.address + f.led_count * (f.channels_per_led || ({ RGBW: 4, DRGBW: 5 }[f.led_type] || 3))}` }))));
+        h("td", { class: "num", text: f.universe + 1 }), h("td", { class: "num", text: f.address + 1 }), h("td", { class: "num", text: `${f.address + 1}–${f.address + f.led_count * (f.channels_per_led || ({ RGBW: 4, DRGBW: 5, RGBWD: 5 }[f.led_type] || 3))}` }))));
     };
     q.addEventListener("input", fill);
     $("#fixturesCard").replaceChildren(

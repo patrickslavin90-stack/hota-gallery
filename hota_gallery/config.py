@@ -114,9 +114,9 @@ from .shaders import SHADERS
 
 log = logging.getLogger("hota_gallery")
 
-# DRGBW: a dimmer channel, then R G B W (e.g. 5-channel "Dim RGBW" fixtures).
+# 5-channel fixtures with a dimmer: DRGBW = Dim R G B W, RGBWD = R G B W Dim.
 # The engine holds the dimmer at full and puts the look in the colours.
-LED_CHANNELS = {"RGBW": 4, "RGB": 3, "DRGBW": 5}
+LED_CHANNELS = {"RGBW": 4, "RGB": 3, "DRGBW": 5, "RGBWD": 5}
 
 
 def off_look() -> Dict[str, Any]:

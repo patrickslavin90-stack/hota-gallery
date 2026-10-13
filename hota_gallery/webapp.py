@@ -106,7 +106,7 @@ class Store:
         for fx in cfg["fixtures"]:
             u = fx["universe"]
             entry = by_universe.setdefault(u, {"universe": u, "fixture_count": 0, "channel_count": 0, "max_address": 0})
-            channels_per_led = fx.get("channels_per_led", {"RGBW": 4, "DRGBW": 5}.get(fx["led_type"], 3))
+            channels_per_led = fx.get("channels_per_led", {"RGBW": 4, "DRGBW": 5, "RGBWD": 5}.get(fx["led_type"], 3))
             entry["fixture_count"] += 1
             entry["channel_count"] += fx["led_count"] * channels_per_led
             entry["max_address"] = max(entry["max_address"], fx["address"] + fx["led_count"] * channels_per_led)
@@ -244,6 +244,54 @@ class Store:
             save_config(self.config_path, validated)
             self.engine.reload(validated)
             return validated["randomizer"]
+
+    def dmx(self, universe: int) -> Dict[str, Any]:
+        """One universe as it's being sent (overrides included), what each
+        channel is patched to, and which channels are overridden."""
+        frames = self.engine.build_frames()
+        cfg = self.engine.cfg
+        labels: Dict[int, str] = {}
+        attrs = {"RGB": "RGB", "RGBW": "RGBW", "DRGBW": ["Dim", "R", "G", "B", "W"], "RGBWD": ["R", "G", "B", "W", "Dim"]}
+        for fx in cfg["fixtures"]:
+            if fx["universe"] != universe:
+                continue
+            cpl = fx.get("channels_per_led", {"RGBW": 4, "DRGBW": 5, "RGBWD": 5}.get(fx["led_type"], 3))
+            names = list(attrs.get(fx["led_type"], "RGB"))
+            for led in range(fx["led_count"]):
+                for k in range(cpl):
+                    ch = fx["address"] + led * cpl + k
+                    pixel = f" px{led + 1}" if fx["led_count"] > 1 else ""
+                    labels[ch] = f"{fx['name']}{pixel} · {names[k] if k < len(names) else k + 1}"
+        with self.engine._lock:
+            over = dict(self.engine.overrides.get(universe, {}))
+        patched = sorted({fx["universe"] for fx in cfg["fixtures"]} | {u for u, chs in self.engine.overrides.items() if chs})
+        return {
+            "universe": universe,
+            "values": list(frames.get(universe, bytes(512))),
+            "overrides": {str(ch): v for ch, v in over.items()},
+            "labels": {str(ch): t for ch, t in labels.items()},
+            "universes": patched,
+            "override_count": sum(len(c) for c in self.engine.overrides.values()),
+        }
+
+    def set_dmx(self, universe: int, body: dict) -> Dict[str, Any]:
+        """{"set": {channel: value}} and/or {"release": [channels]} or
+        {"release_all": true} (every universe). Channels 0-indexed."""
+        if not 0 <= universe <= 63998:
+            raise ConfigError(f"universe {universe} is out of range")
+        if body.get("release_all"):
+            self.engine.release_overrides()
+        if body.get("release"):
+            self.engine.release_overrides(universe, [int(c) for c in body["release"]])
+        values = {}
+        for ch, v in (body.get("set") or {}).items():
+            ch, v = int(ch), int(v)
+            if not 0 <= ch <= 511 or not 0 <= v <= 255:
+                raise ConfigError(f"channel {ch + 1} = {v}: channels are 1-512 and values 0-255")
+            values[ch] = v
+        if values:
+            self.engine.set_overrides(universe, values)
+        return self.dmx(universe)
 
     def peers_status(self) -> List[Dict[str, Any]]:
         """Each configured peer controller with its /api/status, asked by
@@ -525,6 +573,7 @@ class Handler(BaseHTTPRequestHandler):
                 "venue": cfg.get("venue", "gallery"),
                 "protocol": cfg.get("protocol", "artnet"),
                 "output_live": cfg.get("bind_ip") != "127.0.0.1",
+                "overrides": sum(len(c) for c in self.store.engine.overrides.values()),
             })
         elif self.path == "/api/config":
             self._send_json(200, self.store.get_config())
@@ -554,6 +603,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, self.store.lighting_network())
         elif self.path == "/api/peers":
             self._send_json(200, self.store.peers_status())
+        elif re.fullmatch(r"/api/dmx/\d+", self.path):
+            self._send_json(200, self.store.dmx(int(self.path.rsplit("/", 1)[1])))
         elif self.path == "/api/artnet/status":
             self._send_json(200, self.store.artnet_status())
         elif self.path == "/api/artnet/discover":
@@ -640,6 +691,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, self.store.set_lighting_network(body, self.connection.getsockname()[0]))
             elif self.path == "/api/peers":
                 self._send_json(200, self.store.set_peers(body))
+            elif re.fullmatch(r"/api/dmx/\d+", self.path):
+                self._send_json(200, self.store.set_dmx(int(self.path.rsplit("/", 1)[1]), body))
             elif self.path == "/api/layouts":
                 layouts = self.store.set_layouts(body)
                 self._send_json(200, layouts)

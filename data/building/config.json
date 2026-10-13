@@ -11,7 +11,7 @@
   "fixtures": [
     {
       "name": "Fixture 1",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 99,
       "led_count": 1,
@@ -30,7 +30,7 @@
     },
     {
       "name": "Fixture 2",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 104,
       "led_count": 1,
@@ -49,7 +49,7 @@
     },
     {
       "name": "Fixture 3",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 109,
       "led_count": 1,
@@ -68,7 +68,7 @@
     },
     {
       "name": "Fixture 4",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 114,
       "led_count": 1,
@@ -87,7 +87,7 @@
     },
     {
       "name": "Fixture 5",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 119,
       "led_count": 1,
@@ -106,7 +106,7 @@
     },
     {
       "name": "Fixture 6",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 124,
       "led_count": 1,
@@ -125,7 +125,7 @@
     },
     {
       "name": "Fixture 7",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 129,
       "led_count": 1,
@@ -144,7 +144,7 @@
     },
     {
       "name": "Fixture 8",
-      "led_type": "DRGBW",
+      "led_type": "RGBWD",
       "universe": 0,
       "address": 134,
       "led_count": 1,

@@ -20,10 +20,12 @@
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" id="tab-live" aria-controls="view-live" aria-selected="true" data-tab="live">Live</button>
       <button role="tab" id="tab-schedules" aria-controls="view-schedules" aria-selected="false" data-tab="schedules">Schedules</button>
+      <button role="tab" id="tab-channels" aria-controls="view-channels" aria-selected="false" data-tab="channels">Channels</button>
       <button role="tab" id="tab-settings" aria-controls="view-settings" aria-selected="false" data-tab="settings">Settings</button>
     </nav>
     <div class="status">
       <div class="conn" id="conn" data-kind="pending"><i></i><span>Connecting…</span></div>
+      <button type="button" class="lights" id="parked" data-state="part" hidden title="Channels are being set by hand - open Channels to release them"><i></i><span></span></button>
       <button type="button" class="lights" id="lights" hidden><i></i><span></span></button>
       <div class="clock" id="clock"></div>
     </div>
@@ -131,6 +133,14 @@
         <div class="card" id="randCard"></div>
         <div class="card" id="chimeCard"></div>
       </div>
+    </div></div>
+  </main>
+
+  <!-- ===================== CHANNELS ===================== -->
+  <main class="view" id="view-channels" role="tabpanel" aria-labelledby="tab-channels" hidden>
+    <div class="page"><div class="page-inner">
+      <div class="page-head"><div><h2>Channels</h2><p>Set DMX channels by hand, on top of whatever the look is sending. Overrides stay until you release them or the controller restarts.</p></div></div>
+      <div class="card" id="dmxCard"></div>
     </div></div>
   </main>
 

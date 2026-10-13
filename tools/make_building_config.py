@@ -2,7 +2,7 @@
 patched back to back, sent over sACN, laid out in a row (move them to where
 they really are in the UI's Layout editor).
 
-    python tools/make_building_config.py                      # 8 x Dim RGBW at 1.100
+    python tools/make_building_config.py                      # 8 x RGBW+Dim at 1.100
     python tools/make_building_config.py --count 12 --start 1.1
 
 Writes data/building/config.json.
@@ -33,7 +33,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--count", type=int, default=8)
     ap.add_argument("--start", default="1.100", help="universe.address, numbered from 1 like the console")
-    ap.add_argument("--type", default="DRGBW", choices=sorted(LED_CHANNELS), help="DRGBW = Dim RGBW, 5 ch")
+    ap.add_argument("--type", default="RGBWD", choices=sorted(LED_CHANNELS), help="RGBWD = RGBW + Dim, DRGBW = Dim + RGBW (both 5 ch)")
     ap.add_argument("--name", default="Fixture")
     args = ap.parse_args()
 

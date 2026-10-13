@@ -118,7 +118,7 @@ class Fixture:
         self.address: int = data["address"]
         self.led_count: int = data["led_count"]
         self.led_type: str = data["led_type"]
-        self.channels_per_led: int = data.get("channels_per_led", {"RGBW": 4, "DRGBW": 5}.get(self.led_type, 3))
+        self.channels_per_led: int = data.get("channels_per_led", {"RGBW": 4, "DRGBW": 5, "RGBWD": 5}.get(self.led_type, 3))
         self.zone: Optional[str] = data.get("zone")
 
         (x1, y1), (x2, y2) = data["points"]
@@ -179,6 +179,10 @@ class Engine:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._rebind = threading.Event()  # bind_ip changed: reopen the sender
+        # Channel overrides from the Channels tab: universe -> {channel: value},
+        # both 0-indexed. Applied on top of the look; in memory only, so a
+        # restart always releases them.
+        self.overrides: Dict[int, Dict[int, int]] = {}
         self._sender: Optional[Any] = None  # ArtNetSender or SacnSender
 
     # -- live reconfiguration -------------------------------------------
@@ -443,10 +447,37 @@ class Engine:
             for c in fx_colors:
                 if fx.led_type == "DRGBW":
                     values += bytes((255,)) + bytes(c)  # dimmer at full, then RGBW
+                elif fx.led_type == "RGBWD":
+                    values += bytes(c) + bytes((255,))  # RGBW, then dimmer at full
                 else:
                     values += bytes(c) if fx.led_type == "RGBW" else bytes(c[:3])
             buf[fx.address : fx.address + len(values)] = values
+        with self._lock:
+            overrides = {u: dict(chs) for u, chs in self.overrides.items() if chs}
+        for u, chs in overrides.items():
+            buf = frames.setdefault(u, bytearray(512))
+            for ch, v in chs.items():
+                buf[ch] = v
         return frames
+
+    # -- channel overrides (Channels tab) --------------------------------------
+
+    def set_overrides(self, universe: int, values: Dict[int, int]) -> None:
+        with self._lock:
+            self.overrides.setdefault(universe, {}).update(values)
+
+    def release_overrides(self, universe: Optional[int] = None, channels: Optional[List[int]] = None) -> None:
+        """Release some channels of one universe, a whole universe, or (no
+        arguments) everything."""
+        with self._lock:
+            if universe is None:
+                self.overrides.clear()
+            elif channels is None:
+                self.overrides.pop(universe, None)
+            else:
+                chs = self.overrides.get(universe, {})
+                for ch in channels:
+                    chs.pop(ch, None)
 
     # -- run loop -----------------------------------------------------------
 
