@@ -164,6 +164,14 @@ def interp(knots, x):
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
 
+def peers_for(device: str) -> list:
+    """The other controllers, from data/controllers.json (all but this one)."""
+    path = ROOT / "data" / "controllers.json"
+    if not path.exists():
+        return []
+    return [{"name": c["name"], "url": c["url"]} for c in json.loads(path.read_text(encoding="utf-8")) if c["device"] != device]
+
+
 def wall_point(wall: dict, u: float, v: float) -> list:
     """Unfolded wall (u along, v up) -> plan X/Y/Z, folding the wings
     towards the audience (-Y) at the drawing's corners."""
@@ -284,6 +292,7 @@ def main() -> int:
         # Looks are venue-independent, so start from the gallery's library.
         "presets": gallery.get("presets", []),
         "layouts": [{"name": "Facade", "fixtures": keys}],
+        "peers": peers_for("vos"),
         "randomizer": {"enabled": False, "events_per_hour": 20.0, "burst_s": 6.0, "targets": [], "preset_slots": []},
         "clock_chime": {"enabled": False, "look": off_look(), "duration_s": 60.0, "start_hour": 0, "end_hour": 23},
     }

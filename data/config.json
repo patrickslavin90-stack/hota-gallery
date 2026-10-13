@@ -8418,5 +8418,15 @@
     "duration_s": 30,
     "start_hour": 16,
     "end_hour": 23
-  }
+  },
+  "peers": [
+    {
+      "name": "Outdoor stage",
+      "url": "http://10.38.12.58:8080/"
+    },
+    {
+      "name": "Building",
+      "url": "http://10.38.12.240:8080/"
+    }
+  ]
 }

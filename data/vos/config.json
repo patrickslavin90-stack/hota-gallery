@@ -17888,6 +17888,16 @@
       }
     }
   ],
+  "peers": [
+    {
+      "name": "Gallery",
+      "url": "http://10.38.13.24:8080/"
+    },
+    {
+      "name": "Building",
+      "url": "http://10.38.12.240:8080/"
+    }
+  ],
   "randomizer": {
     "enabled": false,
     "events_per_hour": 20.0,

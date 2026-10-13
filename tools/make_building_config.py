@@ -21,6 +21,14 @@ sys.path.insert(0, str(ROOT))
 from hota_gallery.config import LED_CHANNELS, off_look, validate_config  # noqa: E402
 
 
+def peers_for(device: str) -> list:
+    """The other controllers, from data/controllers.json (all but this one)."""
+    path = ROOT / "data" / "controllers.json"
+    if not path.exists():
+        return []
+    return [{"name": c["name"], "url": c["url"]} for c in json.loads(path.read_text(encoding="utf-8")) if c["device"] != device]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--count", type=int, default=8)
@@ -55,6 +63,7 @@ def main() -> int:
         "current_look": {"default": off_look(), "fixtures": {}},
         "schedule": [], "presets": gallery.get("presets", []),
         "layouts": [{"name": "Building", "fixtures": layout}],
+        "peers": peers_for("building"),
         "randomizer": {"enabled": False, "events_per_hour": 20.0, "burst_s": 6.0, "targets": [], "preset_slots": []},
         "clock_chime": {"enabled": False, "look": off_look(), "duration_s": 60.0, "start_hour": 0, "end_hour": 23},
     }
