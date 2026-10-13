@@ -1,0 +1,57 @@
+# HOTA outdoor stage (VOS) sACN lighting control, systemd unit.
+#
+# Same program as the gallery (hota-gallery.service), run with the VOS
+# config - venue "vos", protocol "sacn". Installed by install-vos.sh; see
+# that script for the steps.
+#
+# Logs:    journalctl -u hota-vos -f
+# Restart: sudo systemctl restart hota-vos   (needed after changing the
+#          network interface or web port in Settings)
+
+[Unit]
+Description=HOTA outdoor stage sACN lighting control
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30s
+
+User=hota-vos
+Group=hota-vos
+WorkingDirectory=/opt/hota-vos
+ExecStart=/usr/bin/python3 -m hota_gallery serve --config /etc/hota-vos/config.json
+
+Restart=always
+RestartSec=5s
+
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hota-vos
+
+# Hardening, as for the gallery: the API writes config.json live, so the
+# config directory is the one writable path.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/hota-vos
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
