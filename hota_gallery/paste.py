@@ -67,6 +67,15 @@ def handle(h: BaseHTTPRequestHandler, method: str, board: PasteBoard = BOARD) ->
     path = h.path.split("?", 1)[0]
     if method == "GET" and path in ("/paste", "/paste/"):
         return _send(h, 200, PAGE.encode(), "text/html; charset=utf-8")
+    # Plain text of the newest paste (or /raw/<id>), for a terminal where
+    # pasting doesn't work:  wget -qO- <host>:8090/raw | sh
+    if method == "GET" and (path == "/raw" or path.startswith("/raw/") or path.startswith("/paste/raw")):
+        items = board.list()
+        tail = path.rstrip("/").rsplit("/", 1)[1]
+        pick = next((i for i in items if str(i["id"]) == tail), None) if tail.isdigit() else (items[0] if items else None)
+        if not pick:
+            return _send(h, 404, b"echo 'Nothing on the paste board'\n", "text/plain; charset=utf-8")
+        return _send(h, 200, (pick["text"].replace("\r\n", "\n").rstrip("\n") + "\n").encode(), "text/plain; charset=utf-8")
     if not path.startswith("/api/paste"):
         return False
     try:
@@ -138,7 +147,7 @@ PAGE = r"""<!doctype html>
 <main>
   <a id="back" href="/" hidden style="color:var(--muted);font-size:13px;text-decoration:none">&larr; Back to the lighting control</a>
   <h1>Paste board</h1>
-  <p class="sub">Paste on one machine, copy on another. Ctrl+Enter sends.</p>
+  <p class="sub">Paste on one machine, copy on another. Ctrl+Enter sends. In a terminal where pasting misbehaves, <code id="rawcmd">wget -qO- HOST/raw | sh</code> runs the newest paste.</p>
   <div class="warn">Anyone on this network can read this page, and it's cleared when the controller restarts. Fine for commands, not for passwords or keys.</div>
   <textarea id="text" placeholder="Paste a command or some config here" spellcheck="false" autofocus></textarea>
   <div class="row">
@@ -220,6 +229,7 @@ PAGE = r"""<!doctype html>
   // On a lighting controller (not the standalone script), link back to the
   // lighting UI - the kiosk screen has no browser back button.
   fetch("/api/status", { cache: "no-store" }).then(r => { if (r.ok && (r.headers.get("content-type") || "").includes("json")) $("back").hidden = false; }).catch(() => {});
+  $("rawcmd").textContent = `wget -qO- ${location.host}${location.pathname.startsWith("/paste") ? "/paste" : ""}/raw | sh`;
   refresh();
   setInterval(() => { if (!document.hidden) refresh(); }, 2000);
 })();
