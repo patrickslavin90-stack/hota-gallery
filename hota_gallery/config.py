@@ -154,6 +154,10 @@ CONFIG_DEFAULTS: Dict[str, Any] = {
     "layouts": [],
     "randomizer": {"enabled": False, "events_per_hour": 20.0, "burst_s": 6.0, "targets": [], "preset_slots": []},
     "clock_chime": {"enabled": False, "look": off_look(), "duration_s": 60.0, "start_hour": 0, "end_hour": 23},
+    # The other lighting controllers on the network (gallery, outdoor stage,
+    # building...), shown with their status under Settings -> Other
+    # controllers: [{"name": "Gallery", "url": "http://10.38.12.12:8080/"}].
+    "peers": [],
 }
 
 FIXTURE_KEYS = {
@@ -656,6 +660,16 @@ def validate_config(raw: Any) -> Dict[str, Any]:
 
     if not isinstance(cfg["sacn_destinations"], list) or not all(_valid_ip(ip) for ip in cfg["sacn_destinations"]):
         errors.append(f"sacn_destinations must be a list of IPv4 addresses, got {cfg['sacn_destinations']!r}")
+
+    peers = cfg["peers"]
+    if not isinstance(peers, list):
+        errors.append("peers must be a list")
+    else:
+        for i, peer in enumerate(peers):
+            if not isinstance(peer, dict) or not isinstance(peer.get("name"), str) or not peer["name"].strip():
+                errors.append(f"peers[{i}]: needs a name")
+            elif not isinstance(peer.get("url"), str) or not peer["url"].startswith(("http://", "https://")):
+                errors.append(f"peers[{i}] ({peer['name']}): url must start with http:// or https://, got {peer.get('url')!r}")
 
     if cfg["remote_pin"] not in (None, "") and not (isinstance(cfg["remote_pin"], str) and cfg["remote_pin"].isdigit()):
         errors.append(f"remote_pin must be a string of digits, or null/empty to disable it, got {cfg['remote_pin']!r}")

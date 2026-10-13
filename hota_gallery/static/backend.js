@@ -39,6 +39,8 @@
     artnetStatus() { return request("GET", "/api/artnet/status"); }
     artnetDiscover() { return request("GET", "/api/artnet/discover"); }
     getNetwork() { return request("GET", "/api/network"); }
+    getPeers() { return request("GET", "/api/peers"); }
+    putPeers(list) { return request("PUT", "/api/peers", list); }
     putNetwork(body) { return request("PUT", "/api/network", body); }
   }
 
@@ -124,6 +126,8 @@
     async putBackground() { throw new ApiError("Background images need the controller - not available in the demo."); }
     backgroundUrl() { return null; }
     async artnetStatus() { return null; }
+    async getPeers() { return (this.cfg.peers || []).map(p => ({ ...p, online: null })); }
+    async putPeers(list) { this.cfg.peers = list; this._save(); return this.getPeers(); }
     async getNetwork() { return { available: false, interfaces: [], profile: null, bind_ip: this.cfg.bind_ip }; }
     async putNetwork() { throw new ApiError("Changing network settings needs the controller - not available in the demo."); }
     async artnetDiscover() { throw new ApiError("Node discovery needs the controller on the lighting network."); }

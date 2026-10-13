@@ -1698,7 +1698,7 @@
     $("#settingsSub").textContent = api.kind === "controller"
       ? "Device and network settings for the lighting controller."
       : "You're in the demo. Settings are saved in this browser, and network details need the real controller.";
-    renderDevice(); renderRemote(); renderArtnet(); renderConfigCard(); renderFixtures();
+    renderDevice(); renderRemote(); renderArtnet(); renderPeers(); renderConfigCard(); renderFixtures();
   }
 
   // "Scan to connect": a QR code for the address this page is live on right
@@ -1822,7 +1822,7 @@
     const pending = () => api.kind === "controller" && cfg.web_port !== runningPort();
     const renderPortNote = () => {
       if (!pending()) { pendingSlot.replaceChildren(); return; }
-      const restartCmd = "sudo systemctl restart hota-gallery";
+      const restartCmd = `sudo systemctl restart ${venue === "gallery" ? "hota-gallery" : "hota-vos"}`;
       slideAlert(pendingSlot, `Restart the controller to move to port ${cfg.web_port}`,
         `It's still running on ${runningPort()} until then. Afterwards this page lives at ${newUrl(cfg.web_port).replace(/#.*/, "")}.`, 0, {
           kind: "warn",
@@ -2046,6 +2046,56 @@
           h("div", { class: "field" }, h("label", { for: "netPrefix", text: "Subnet" }), prefix),
           apply, status)
         : h("p", { class: "hint", style: "margin:0", text: "This controller has no wired network port." }));
+  }
+
+  // Other controllers on the network (gallery, outdoor stage, building):
+  // status asked by this controller (GET /api/peers), click to open one.
+  let peersTimer = 0;
+  async function renderPeers(editing = false) {
+    const card = $("#peersCard");
+    clearTimeout(peersTimer);
+    const venueName = v => ({ gallery: "Gallery façade", vos: "Outdoor stage", building: "Building" }[v] || "");
+    const editBtn = h("button", { type: "button", class: "btn sm", text: editing ? "Done" : "Edit", onclick: () => renderPeers(!editing) });
+    const body = h("div", { class: "body" }, h("p", { class: "hint", style: "margin:0", text: "Checking…" }));
+    card.replaceChildren(h("header", null, h("h3", { text: "Other controllers" }), h("div", { class: "actions" }, editBtn)), body);
+    let peers = [];
+    try { peers = await api.getPeers(); } catch (e) { body.replaceChildren(h("p", { class: "hint err-text", style: "margin:0", text: errText(e) })); return; }
+    const save = async list => {
+      try { await api.putPeers(list); cfg.peers = list; renderPeers(true); }
+      catch (e) { toast(errText(e), true); }
+    };
+    const rows = peers.map((p, i) => {
+      const state = p.online === null ? "unknown" : p.online ? "ok" : "bad";
+      const detail = p.online
+        ? [venueName(p.venue) || p.device_name, `${p.fixture_count} fixtures`, (p.protocol || "").replace("artnet", "Art-Net").replace("sacn", "sACN"),
+           p.output_live === false ? "output off" : p.output_live ? "sending" : ""].filter(Boolean).join(" · ")
+        : p.online === null ? "Status needs the controller" : `Offline${p.error ? ` - ${p.error}` : ""}`;
+      return h("div", { class: "node", style: "display:flex;align-items:center;gap:10px" },
+        h("span", { class: `ustat ${state}` }, h("i")),
+        h("div", { style: "flex:1;min-width:0" },
+          h("b", { text: p.name }),
+          h("div", { class: "hint", style: "margin:2px 0 0", text: `${p.url.replace(/^https?:\/\//, "").replace(/\/$/, "")} - ${detail}` })),
+        editing
+          ? h("button", { type: "button", class: "btn sm ghost", text: "Remove", onclick: () => save(peers.filter((_, j) => j !== i).map(({ name, url }) => ({ name, url }))) })
+          : h("a", { class: "btn sm" + (p.online ? " primary" : ""), href: p.url, text: "Open" }));
+    });
+    const addForm = () => {
+      const n = h("input", { type: "text", placeholder: "Name, e.g. Gallery", "aria-label": "Controller name", style: "width:160px" });
+      const u = h("input", { type: "text", placeholder: "Address, e.g. 10.38.12.12:8080", "aria-label": "Controller address", style: "width:230px" });
+      const add = h("button", { type: "button", class: "btn sm primary", text: "Add", onclick: () => {
+        let url = u.value.trim();
+        if (!n.value.trim() || !url) { toast("Give the controller a name and an address", true); return; }
+        if (!/^https?:\/\//.test(url)) url = "http://" + url;
+        if (!/:\d+/.test(url.replace(/^https?:\/\//, ""))) url = url.replace(/\/?$/, ":8080/");
+        save([...peers.map(({ name, url }) => ({ name, url })), { name: n.value.trim(), url }]);
+      } });
+      return h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:12px" }, n, u, add);
+    };
+    body.replaceChildren(
+      h("p", { class: "hint", style: "margin-top:0", text: "The other lighting controllers. Status is checked by this controller every 15 seconds; Open goes to that controller's own page." }),
+      rows.length ? h("div", { class: "nodes", style: "grid-template-columns:1fr" }, rows) : h("p", { class: "hint", text: "None added yet - press Edit to add the gallery, outdoor stage or building controller." }),
+      ...(editing ? [addForm()] : []));
+    if (!editing) peersTimer = setTimeout(() => { if (!tabs.settings.hidden && !document.hidden) renderPeers(); }, 15000);
   }
 
   async function renderArtnet() {

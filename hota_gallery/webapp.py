@@ -21,6 +21,7 @@ import mimetypes
 import re
 import subprocess
 import threading
+import urllib.request
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -243,6 +244,39 @@ class Store:
             save_config(self.config_path, validated)
             self.engine.reload(validated)
             return validated["randomizer"]
+
+    def peers_status(self) -> List[Dict[str, Any]]:
+        """Each configured peer controller with its /api/status, asked by
+        this controller (no browser cross-origin rules, and the same answer
+        on the kiosk as on a phone). All at once, 2 s timeout each."""
+        peers = list(self.engine.cfg.get("peers") or [])
+        out: List[Dict[str, Any]] = [dict(p, online=False) for p in peers]
+
+        def probe(i: int) -> None:
+            url = peers[i]["url"].rstrip("/") + "/api/status"
+            try:
+                with urllib.request.urlopen(url, timeout=2) as r:
+                    st = json.loads(r.read().decode())
+                out[i].update(online=True, device_name=st.get("device_name"), fixture_count=st.get("fixture_count"),
+                              venue=st.get("venue"), protocol=st.get("protocol"), output_live=st.get("output_live"))
+            except Exception as exc:  # noqa: BLE001 - offline, wrong address, not a controller
+                out[i]["error"] = str(getattr(exc, "reason", exc))
+
+        threads = [threading.Thread(target=probe, args=(i,), daemon=True) for i in range(len(peers))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(3)
+        return out
+
+    def set_peers(self, peers: list) -> List[Dict[str, Any]]:
+        with self._lock:
+            cfg = dict(self.engine.cfg)
+            cfg["peers"] = [{"name": str(p.get("name", "")).strip(), "url": str(p.get("url", "")).strip()} for p in peers]
+            validated = validate_config(cfg)
+            save_config(self.config_path, validated)
+            self.engine.reload(validated)
+        return self.peers_status()
 
     def lighting_network(self) -> Dict[str, Any]:
         """Wired/Wi-Fi ports and the lighting network profile, for Settings."""
@@ -487,6 +521,10 @@ class Handler(BaseHTTPRequestHandler):
                 "device_name": cfg["device_name"],
                 "fixture_count": len(cfg["fixtures"]),
                 "current_look": cfg["current_look"],
+                # For other controllers' "Other controllers" card.
+                "venue": cfg.get("venue", "gallery"),
+                "protocol": cfg.get("protocol", "artnet"),
+                "output_live": cfg.get("bind_ip") != "127.0.0.1",
             })
         elif self.path == "/api/config":
             self._send_json(200, self.store.get_config())
@@ -514,6 +552,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif self.path == "/api/network":
             self._send_json(200, self.store.lighting_network())
+        elif self.path == "/api/peers":
+            self._send_json(200, self.store.peers_status())
         elif self.path == "/api/artnet/status":
             self._send_json(200, self.store.artnet_status())
         elif self.path == "/api/artnet/discover":
@@ -598,6 +638,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, clock_chime)
             elif self.path == "/api/network":
                 self._send_json(200, self.store.set_lighting_network(body, self.connection.getsockname()[0]))
+            elif self.path == "/api/peers":
+                self._send_json(200, self.store.set_peers(body))
             elif self.path == "/api/layouts":
                 layouts = self.store.set_layouts(body)
                 self._send_json(200, layouts)
