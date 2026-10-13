@@ -41,6 +41,10 @@ OUT_CONFIG = ROOT / "data" / "vos" / "config.json"
 OUT_3D = ROOT / "hota_gallery" / "static" / "vos3d.json"
 OUT_DEMO = ROOT / "hota_gallery" / "static" / "vos-demo-config.json"  # demo mode, ?venue=vos
 GALLERY_CONFIG = ROOT / "data" / "config.json"
+# Building model from the architect's drawings (tools/build_vos_model.py):
+# gives the wall's real top edge, which the strips run along.
+BUILDING = ROOT / "hota_gallery" / "static" / "vos-building.json"
+STRIP_ORDER = ["Strip A", "Strip B", "Strip C", "Strip D"]  # left to right along the top edge
 
 sys.path.insert(0, str(ROOT))
 from hota_gallery.config import off_look, validate_config  # noqa: E402
@@ -160,6 +164,44 @@ def interp(knots, x):
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
 
+def wall_point(wall: dict, u: float, v: float) -> list:
+    """Unfolded wall (u along, v up) -> plan X/Y/Z, folding the wings
+    towards the audience (-Y) at the drawing's corners."""
+    fold, a = wall["fold_u"], math.radians(wall["wing_angle_deg"])
+    if abs(u) <= fold:
+        X, Y = u, 0.0
+    else:
+        d = abs(u) - fold
+        X, Y = math.copysign(fold + d * math.cos(a), u), -d * math.sin(a)
+    return [round(X), round(Y - 40), round(v)]  # 40 mm proud of the face
+
+
+def strips_on_top_edge(fixtures: list, layout: dict, wall: dict) -> dict:
+    """Strip pixels spaced along the wall's top edge in chain order, at the
+    same fraction of the edge as they sit along the MA layout's strip
+    line. Assumes the strip runs the whole top edge, end to end."""
+    def arclen(pts):
+        out = [0.0]
+        for a, b in zip(pts, pts[1:]):
+            out.append(out[-1] + math.dist(a, b))
+        return out
+
+    num = lambda n: int(n.rsplit(" ", 1)[1])
+    chain = sorted((f for f in fixtures if f["zone"] in STRIP_ORDER), key=lambda f: (STRIP_ORDER.index(f["zone"]), num(f["name"])))
+    ma = arclen([layout[f["name"]] for f in chain])
+    top = wall["top"]
+    edge = arclen(top)
+    out = {}
+    for f, s in zip(chain, ma):
+        target = s / ma[-1] * edge[-1]
+        i = next(i for i in range(1, len(edge)) if edge[i] >= target) if target < edge[-1] else len(edge) - 1
+        t = (target - edge[i - 1]) / ((edge[i] - edge[i - 1]) or 1)
+        u = top[i - 1][0] + (top[i][0] - top[i - 1][0]) * t
+        v = top[i - 1][1] + (top[i][1] - top[i - 1][1]) * t
+        out[f"{f['universe']}:{f['address']}"] = wall_point(wall, u, v)
+    return out
+
+
 def main() -> int:
     patch = read_mvr(SRC / "vos strips and dots.mvr")
     layout = {**read_ma_layout(SRC / "facade strip.xml"), **read_ma_layout(SRC / "facade dot.xml")}
@@ -216,6 +258,9 @@ def main() -> int:
         else:
             X, Z = to_xz(*layout[f["name"]])
             pos3d[key] = [round(X), round(interp(knots, X)), round(Z)]
+    if BUILDING.exists():
+        pos3d.update(strips_on_top_edge(fixtures, layout, json.loads(BUILDING.read_text(encoding="utf-8"))["wall"]))
+        print("strips placed along the wall's top edge from the building model")
     estimated_dots = [f["name"] for f in fixtures if "Dot" in f["name"] and f["name"] not in dot_pos]
     vw_unpatched = sorted(a for a in vw if a not in set(patch.values()))
 

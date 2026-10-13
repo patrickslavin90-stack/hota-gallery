@@ -97,41 +97,117 @@
     return { group, roofZ };
   }
 
-  // Outdoor stage (VOS): no traced drawings, just every fixture's real 3D
-  // position (static/vos3d.json, from tools/import_vos.py). The facade
-  // itself is a faint placeholder skin from the ground up to the strip
-  // line, following the plan line the dots give - until there's a model of
-  // the stage shell to load instead.
+  // Outdoor stage (VOS): every fixture's real 3D position (static/vos3d.json,
+  // tools/import_vos.py) on a model of the stage built from the architect's
+  // as-built drawings (static/vos-building.json + vos-wall.png,
+  // tools/build_vos_model.py): the Voronoi wall folded onto its plan, the
+  // canopy ring and glazing grid, its two legs, the lawn and stage floor.
+  // Without the building file it falls back to just the lights.
   function stageKey(f) { return `${f.universe}:${f.address}`; }
-  function buildStage(scene, v3d, fixtures) {
+  const lerpTable = (t, x) => {
+    if (x <= t[0][0]) return t[0][1];
+    for (let i = 1; i < t.length; i++) if (t[i][0] >= x) {
+      const [x0, y0] = t[i - 1], [x1, y1] = t[i];
+      return y0 + (y1 - y0) * (x - x0) / ((x1 - x0) || 1);
+    }
+    return t[t.length - 1][1];
+  };
+  function hull(pts) { // convex hull, monotone chain
+    pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (const p of pts.reverse()) { while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  function buildStage(scene, v3d, vb) {
     const group = new THREE.Group();
     const toV = p => [p[0] / 1000, p[2] / 1000, -p[1] / 1000];
-    // Skin: strip pixels sorted across the stage give the top edge.
-    const edge = fixtures.filter(f => /^Strip/.test(f.zone || "")).map(f => v3d.fixtures[stageKey(f)]).filter(Boolean).sort((a, b) => a[0] - b[0]);
-    const pos = [];
-    for (let i = 0; i < edge.length - 1; i++) {
-      const a = edge[i], b = edge[i + 1];
-      const a0 = toV([a[0], a[1], 0]), a1 = toV(a), b0 = toV([b[0], b[1], 0]), b1 = toV(b);
-      pos.push(...a0, ...b0, ...b1, ...a0, ...b1, ...a1);
+    const groundZ = vb ? vb.ground_z : 0;
+    let minX = v3d.extent.min_x, maxX = v3d.extent.max_x, maxZ = v3d.extent.max_z, minY = -6000;
+
+    if (vb) {
+      // Wall: one strip of quads along the unfolded wall, folded at the two
+      // corners, textured with the elevation (alpha cuts the top edge).
+      const w = vb.wall, fold = w.fold_u, a = w.wing_angle_deg * Math.PI / 180;
+      const plan = u => Math.abs(u) <= fold ? [u, 0] : [Math.sign(u) * (fold + (Math.abs(u) - fold) * Math.cos(a)), -(Math.abs(u) - fold) * Math.sin(a)];
+      const us = [-fold, fold];
+      for (let u = w.u0; u < w.u1; u += 400) us.push(u);
+      us.push(w.u1);
+      us.sort((p, q) => p - q);
+      const pos = [], uv = [], idx = [];
+      us.forEach((u, i) => {
+        const [X, Y] = plan(u), t = (u - w.u0) / (w.u1 - w.u0);
+        pos.push(...toV([X, Y, w.v_bottom]), ...toV([X, Y, w.v_top]));
+        uv.push(t, 0, t, 1);
+        if (i) idx.push(2 * i - 2, 2 * i, 2 * i + 1, 2 * i - 2, 2 * i + 1, 2 * i - 1);
+      });
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      const tex = new THREE.TextureLoader().load(BASE.replace(/vendor\/three\/$/, "") + w.texture);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      // Dusk: the stone is dim, so the lights are what you see.
+      group.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, color: 0x5c5955, alphaTest: 0.5, side: THREE.DoubleSide })));
+      for (const [u, v] of [[w.u0, 0], [w.u1, 0]]) minX = Math.min(minX, plan(u)[0]), maxX = Math.max(maxX, plan(u)[0]);
+      minY = Math.min(minY, plan(w.u0)[1], plan(w.u1)[1]);
+      maxZ = Math.max(maxZ, ...w.top.map(q => q[1]));
+
+      // Canopy: glazing as a faint surface over its plan outline, at the
+      // height the section and elevation give; then the grid and ring.
+      const c = vb.canopy;
+      const zAt = (X, Y) => lerpTable(c.profile, Y) - lerpTable(c.sag, X);
+      const span = c.sag[c.sag.length - 1][0];
+      const outline = hull(c.lines.flat().filter(q => Math.abs(q[0]) <= span).map(q => [q[0], q[1]]));
+      const shape = new THREE.Shape(outline.map(([X, Y]) => new THREE.Vector2(X, Y)));
+      const sg = new THREE.ShapeGeometry(shape, 24);
+      const sp = sg.attributes.position;
+      for (let i = 0; i < sp.count; i++) {
+        const X = sp.getX(i), Y = sp.getY(i), v = toV([X, Y, zAt(X, Y)]);
+        sp.setXYZ(i, v[0], v[1], v[2]);
+      }
+      sg.computeBoundingSphere();
+      group.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color: 0x8fa3b8, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false })));
+      const seg = [];
+      for (const pl of c.lines) for (let i = 0; i < pl.length - 1; i++) seg.push(...toV(pl[i]), ...toV(pl[i + 1]));
+      const lg = new THREE.BufferGeometry();
+      lg.setAttribute("position", new THREE.Float32BufferAttribute(seg, 3));
+      group.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xc9c6c0, transparent: true, opacity: 0.6 })));
+      // The ring (a big steel beam in the photos) and the two legs.
+      const metal = new THREE.MeshBasicMaterial({ color: 0x5e5c58 });
+      const ring = outline.map(([X, Y]) => new THREE.Vector3(...toV([X, Y, zAt(X, Y)])));
+      group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ring, true), 400, 0.4, 8, true), metal));
+      for (const leg of c.legs) {
+        const curve = new THREE.CatmullRomCurve3(leg.map(q => new THREE.Vector3(...toV(q))));
+        group.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.55, 10, false), metal));
+      }
+      minY = Math.min(minY, ...outline.map(q => q[1]));
+      maxZ = Math.max(maxZ, ...c.lines.flat().map(q => q[2]));
+
+      // Stage floor behind the opening, at stage level.
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(26, 14), new THREE.MeshBasicMaterial({ color: 0x141312 }));
+      floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0.01, -7);
+      group.add(floor);
+    } else {
+      const plan = new THREE.BufferGeometry();
+      plan.setAttribute("position", new THREE.Float32BufferAttribute(v3d.plan.flatMap(([x, y]) => toV([x, y, 10])), 3));
+      group.add(new THREE.Line(plan, new THREE.LineBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.35 })));
     }
-    const skin = new THREE.BufferGeometry();
-    skin.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    group.add(new THREE.Mesh(skin, new THREE.MeshBasicMaterial({ color: 0x2a2727, side: THREE.DoubleSide, transparent: true, opacity: 0.55, depthWrite: false })));
-    // Plan line on the ground.
-    const plan = new THREE.BufferGeometry();
-    plan.setAttribute("position", new THREE.Float32BufferAttribute(v3d.plan.flatMap(([x, y]) => toV([x, y, 10])), 3));
-    group.add(new THREE.Line(plan, new THREE.LineBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.35 })));
-    const e = v3d.extent;
-    const cx = (e.min_x + e.max_x) / 2000, cz = -(Math.min(...v3d.plan.map(p => p[1])) + Math.max(...v3d.plan.map(p => p[1]))) / 2000;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshBasicMaterial({ color: 0x0b0a0a }));
-    ground.rotation.x = -Math.PI / 2; ground.position.set(cx, -0.02, cz);
+
+    // Lawn and a faint 5 m grid, at ground level in front of the stage.
+    const cx = (minX + maxX) / 2000, cz = -minY / 2000;
+    const gy = groundZ / 1000;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshBasicMaterial({ color: vb ? 0x0d120c : 0x0b0a0a }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(cx, gy - 0.02, cz);
     group.add(ground);
-    const grid = new THREE.GridHelper(160, 32, 0x2a2828, 0x1d1c1c);
-    grid.position.set(cx, 0, cz);
+    const grid = new THREE.GridHelper(220, 44, 0x232a21, 0x161b15);
+    grid.position.set(cx, gy, cz);
     group.add(grid);
     scene.add(group);
-    const height = e.max_z / 1000;
-    return { toV, centre: new THREE.Vector3(cx, height * 0.45, cz), radius: 0.5 * Math.hypot((e.max_x - e.min_x) / 1000, height) };
+    const height = maxZ / 1000;
+    return { toV, centre: new THREE.Vector3(cx, height * 0.4, cz), radius: 0.5 * Math.hypot((maxX - minX) / 1000, height, -minY / 1000) };
   }
 
   // Glow sprites: soft core + wide halo, additive, depth-tested (the
@@ -183,7 +259,7 @@
     controls.maxPolarAngle = Math.PI * 0.495; // stay above ground
     controls.minDistance = 8; controls.maxDistance = 220;
 
-    const stage = src.v3d ? buildStage(scene, src.v3d, src.getFixtures()) : null;
+    const stage = src.v3d ? buildStage(scene, src.v3d, src.vb) : null;
     let M = null, roofZ = 0, fp = null, centre;
     if (stage) {
       centre = stage.centre;
@@ -209,8 +285,16 @@
           // One pixel per fixture; dots drawn bigger than strip pixels.
           const p = src.v3d.fixtures[stageKey(f)];
           if (!p) return;
+          const dot = /dots$/i.test(f.zone || "");
           for (let i = 0; i < f.led_count; i++) {
-            samples.push({ fi, i0: i, i1: i, t: 0 }); pos.push(...stage.toV(p)); size.push(/dots$/i.test(f.zone || "") ? 2600 : 900);
+            samples.push({ fi, i0: i, i1: i, t: 0 }); pos.push(...stage.toV(p)); size.push(dot ? 2600 : 900);
+            // Spill: a big faint glow on the stone round each dot and every
+            // third strip pixel, so a look reads as light on the wall.
+            if (src.vb && (dot || fi % 3 === 0)) {
+              const q = stage.toV(p);
+              samples.push({ fi, i0: i, i1: i, t: 0, k: dot ? 0.22 : 0.12, spill: true });
+              pos.push(q[0], q[1] - (dot ? 0 : 0.6), q[2] + 0.05); size.push(dot ? 16000 : 11000);
+            }
           }
           return;
         }
@@ -257,18 +341,25 @@
           const w = A[3] + (B[3] - A[3]) * t;
           r = A[0] + (B[0] - A[0]) * t + w; g = A[1] + (B[1] - A[1]) * t + w * 0.96; b = A[2] + (B[2] - A[2]) * t + w * 0.88;
         }
-        // Unlit LEDs stay faintly visible as grey fittings.
-        if (r + g + b < 24) { r = g = b = 34; }
+        if (S.k) { r *= S.k; g *= S.k; b *= S.k; }
+        // Unlit LEDs stay faintly visible as grey fittings (spill stays dark).
+        else if (r + g + b < 24) { r = g = b = 34; }
         arr[s * 3] = Math.min(255, r) / 255; arr[s * 3 + 1] = Math.min(255, g) / 255; arr[s * 3 + 2] = Math.min(255, b) / 255;
       }
       col.needsUpdate = true;
     }
 
     // Camera presets, named from where you stand.
-    // Gallery: [east, north] unit direction. Stage: the audience is at +Y
-    // (three.js -z), so "Front" looks straight up the stage.
+    // Gallery: [east, north] unit direction. Stage: [across, depth] - the
+    // audience is at -Y (three.js +z), so "Front" looks straight at the wall.
     const VIEWS = stage
-      ? { "Front": [0, 1], "Front left": [-0.75, 0.75], "Front right": [0.75, 0.75], "Above": null }
+      ? {
+          // Eye level out on the lawn, like the photos; then the overviews.
+          "Audience": { pos: [0, 1.7, 54], target: [0, 7.5, 0] },
+          "Lawn left": { pos: [-34, 1.8, 38], target: [0, 6.5, 2] },
+          "Lawn right": { pos: [34, 1.8, 38], target: [0, 6.5, 2] },
+          "Front": [0, -1], "Above": null,
+        }
       : { "North-east": [1, 1], "South-east": [1, -1], "South-west": [-1, -1], "North-west": [-1, 1], "Above": null };
     // Distance that fits the whole building (bounding sphere) in the
     // narrower of the two fields of view, so presets work at any window shape.
@@ -281,14 +372,15 @@
     function setView(name, instant) {
       lastView = name;
       const d = fitDistance(), v = VIEWS[name];
-      const to = v
-        ? new THREE.Vector3(centre.x + v[0] * d * 0.69, centre.y + d * 0.2, centre.z - v[1] * d * 0.69)
+      const aim = v && v.target ? new THREE.Vector3(...v.target) : centre;
+      const to = v && v.pos ? new THREE.Vector3(...v.pos)
+        : v ? new THREE.Vector3(centre.x + v[0] * d * 0.69, centre.y + d * 0.2, centre.z - v[1] * d * 0.69)
         : new THREE.Vector3(centre.x, centre.y + d, centre.z + 0.01); // north up
-      if (instant) { camera.position.copy(to); controls.target.copy(centre); controls.update(); return; }
-      const from = camera.position.clone(), t0 = performance.now();
+      if (instant) { camera.position.copy(to); controls.target.copy(aim); controls.update(); return; }
+      const from = camera.position.clone(), aimFrom = controls.target.clone(), t0 = performance.now();
       (function step() {
         const k = Math.min(1, (performance.now() - t0) / 700), e = 1 - Math.pow(1 - k, 3);
-        camera.position.lerpVectors(from, to, e); controls.target.lerp(centre, e); controls.update();
+        camera.position.lerpVectors(from, to, e); controls.target.lerpVectors(aimFrom, aim, e); controls.update();
         if (k < 1) requestAnimationFrame(step);
       })();
     }

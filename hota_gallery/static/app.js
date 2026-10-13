@@ -262,6 +262,7 @@
   const getJson = async url => { try { return await (await fetch(url, { cache: "no-store" })).json(); } catch { return null; } };
   let b3d = null; // gallery: rough 3D massing derived from the elevation grids (tools/build_3d.py)
   let v3d = null; // outdoor stage: per-fixture 3D positions (tools/import_vos.py)
+  let vb = null;  // outdoor stage: building model from the as-builts (tools/build_vos_model.py)
   // Gallery fixture positions on the elevations, shipped with the UI. Used
   // when the controller's config doesn't have its own "Building" layout
   // yet - it gets saved there the first time someone moves fixtures in it.
@@ -269,7 +270,7 @@
   if (venue === "gallery") {
     [elev, b3d, builtinBuilding] = await Promise.all(["static/elevations.json", "static/building3d.json", "static/building-layout.json"].map(getJson));
   } else {
-    v3d = await getJson("static/vos3d.json");
+    [v3d, vb] = await Promise.all(["static/vos3d.json", "static/vos-building.json"].map(getJson));
   }
   document.querySelector(".brand > span").textContent = VENUE.title;
   document.title = venue === "vos" ? "HOTA Outdoor Stage Lighting" : document.title;
@@ -1044,7 +1045,7 @@
       $("#toggle3d").textContent = "Loading 3D…";
       try {
         view3d = await HotaView3D.create($("#view3d"), {
-          elev, b3d, v3d,
+          elev, b3d, v3d, vb,
           getLayout: () => allLayouts().find(l => l.name === "Building"),
           getFixtures: () => cfg.fixtures,
           getPreview: () => live.preview,
