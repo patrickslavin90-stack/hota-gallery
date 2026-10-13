@@ -352,7 +352,7 @@ class Store:
         for p, r in zip(players, roster):
             p["url"] = r["url"]
         try:
-            match = battle_mod.make_match(players, int(body.get("points_to_win", 3)))
+            match = battle_mod.make(body.get("style", "pingpong"), players, int(body.get("points_to_win", 3)))
         except ValueError as exc:
             raise ConfigError(str(exc))
         lead = 2.5  # seconds for the script to reach everyone

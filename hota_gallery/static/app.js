@@ -2065,6 +2065,8 @@
     const names = st.players, sc = st.score;
     pill.querySelector("span").textContent = st.starts_in > 0
       ? `Light battle starts in ${Math.ceil(st.starts_in)} s`
+      : st.style === "call"
+        ? (st.finale ? "Light battle: everyone together!" : st.turn != null ? `Light battle: ${names[st.turn]}'s move` : "Light battle: get ready")
       : st.winner != null
         ? `${names[st.winner]} wins the light battle!`
         : `Light battle: ${names.map((n, i) => `${n} ${sc[i]}`).join(" – ")}`;
@@ -2098,13 +2100,28 @@
         h("span", { text: r.label }), r.note ? h("span", { class: "hint", style: "margin:0", text: r.note }) : null);
     });
     const points = h("select", { "aria-label": "Points to win" }, [1, 3, 5].map(n => h("option", { value: n, text: `First to ${n}`, selected: n === 3 })));
+    const styleSel = h("select", { "aria-label": "Battle style" },
+      h("option", { value: "pingpong", text: "Ping-pong" }), h("option", { value: "call", text: "Call and response" }));
+    const blurb = h("p", { class: "dlg-msg" });
+    const pointsField = h("div", { class: "field" }, h("label", { text: "Match" }), points);
+    const describe = () => {
+      const call = styleSel.value === "call";
+      blurb.textContent = call
+        ? "The buildings take turns: one plays a move in its colour, the next answers with a faster, wilder one, round after round, then everyone plays together for the finale. About 40 seconds."
+        : "A ball of light crosses each building and gets returned to the next, faster every time, until someone misses. First to the target wins and floods every building in its colour.";
+      pointsField.hidden = call;
+    };
+    styleSel.addEventListener("change", describe);
+    describe();
     const err = h("p", { class: "hint err-text", style: "margin:8px 0 0" });
     const start = h("button", { type: "submit", class: "btn primary", text: "Start battle" });
     const form = h("form", { method: "dialog", class: "dlg-body" },
       h("h3", { class: "dlg-title", id: "battleTitle", text: "Light battle" }),
-      h("p", { class: "dlg-msg", text: "An automatic game of ping-pong: a ball of light crosses each building and gets returned to the next, faster every time, until someone misses. First to the target wins and floods every building in its colour. The real lights on every player take part - each goes back to its own look at the end." }),
+      h("div", { class: "field" }, h("label", { text: "Style" }), styleSel),
+      blurb,
+      h("p", { class: "hint", text: "The real lights on every player take part, and each goes back to its own look at the end." }),
       h("div", { style: "margin:10px 0" }, ...boxes),
-      h("div", { class: "field" }, h("label", { text: "Match" }), points),
+      pointsField,
       err,
       h("div", { class: "dlg-actions" }, h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => close() }), start));
     const dlg = h("dialog", { class: "dlg", "aria-labelledby": "battleTitle" }, form);
@@ -2116,7 +2133,7 @@
       if (players.length < 2) { err.textContent = "Pick at least two players."; return; }
       start.disabled = true; start.textContent = "Starting…"; err.textContent = "";
       try {
-        const st = await api.startBattle({ players, points_to_win: +points.value });
+        const st = await api.startBattle({ players, style: styleSel.value, points_to_win: +points.value });
         close();
         toast(`Light battle starting: ${st.players.join(" vs ")}`);
         showBattle(st); pollBattle();
