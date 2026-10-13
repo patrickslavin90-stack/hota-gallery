@@ -25,6 +25,7 @@
     </nav>
     <div class="status">
       <div class="conn" id="conn" data-kind="pending"><i></i><span>Connecting…</span></div>
+      <button type="button" class="lights" id="battlePill" data-state="ok" hidden title="Click to stop the light battle"><i></i><span></span></button>
       <button type="button" class="lights" id="parked" data-state="part" hidden title="Channels are being set by hand - open Channels to release them"><i></i><span></span></button>
       <button type="button" class="lights" id="lights" hidden><i></i><span></span></button>
       <div class="clock" id="clock"></div>
@@ -49,6 +50,7 @@
             <button type="button" class="btn" id="toggle3d" aria-pressed="false" hidden title="Rotate around a rough 3D model of the gallery">3D</button>
             <div class="seg" id="view3dSeg" role="group" aria-label="Camera" hidden></div>
             <span class="spacer"></span>
+            <button type="button" class="btn" id="battleBtn" title="Start a light battle with the other controllers">Battle</button>
             <button type="button" class="btn" id="toggleBlind" aria-pressed="false" title="Program and preview a look without sending anything to the real lights">Blind</button>
             <button type="button" class="btn primary" id="blindGoLive" hidden title="Send the blind look to the real lights now">Go live</button>
             <button type="button" class="btn" id="clearProgram" title="Drop every manual look and show whatever the schedule says should be playing right now. Click again to confirm.">Clear</button>

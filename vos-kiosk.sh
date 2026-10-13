@@ -14,6 +14,8 @@ gsettings set org.gnome.desktop.session idle-delay 0 2>/dev/null
 gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null
 gsettings set org.gnome.desktop.screensaver idle-activation-enabled false 2>/dev/null
 gsettings set org.gnome.settings-daemon.plugins.power idle-dim false 2>/dev/null
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type nothing 2>/dev/null
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type nothing 2>/dev/null
 xset s off -dpms 2>/dev/null
 
 # The service and the desktop start independently, so wait for the

@@ -915,6 +915,7 @@
     try {
       const st = await (await fetch("/api/status", { cache: "no-store" })).json();
       showParked(st.overrides || 0);
+      if (st.battle && !battleUi.timer) { showBattle(st.battle); pollBattle(); } else if (!st.battle) showBattle(null);
       if (Date.now() - lastLookEdit < 3000) return; // a save may still be on its way
       if (JSON.stringify(st.current_look) !== JSON.stringify(cfg.current_look)) { cfg.current_look = st.current_look; updateTarget(); }
     } catch { /* the preview poll reports outages */ }
@@ -2049,6 +2050,85 @@
           apply, status)
         : h("p", { class: "hint", style: "margin:0", text: "This controller has no wired network port." }));
   }
+
+  // ===================================================================
+  // Light battle: an automatic game of ping-pong between controllers
+  // (battle.py). Start it here; every player plays its part of one script.
+  // ===================================================================
+  const battleUi = { timer: 0, last: null };
+  const venueTitle = v => ({ gallery: "Gallery", vos: "Outdoor stage", building: "Building" }[v] || cfg.device_name || "This controller");
+  function showBattle(st) {
+    battleUi.last = st;
+    const pill = document.getElementById("battlePill");
+    if (!st || !st.active && !st.starts_in) { pill.hidden = true; return; }
+    pill.hidden = false;
+    const names = st.players, sc = st.score;
+    pill.querySelector("span").textContent = st.starts_in > 0
+      ? `Light battle starts in ${Math.ceil(st.starts_in)} s`
+      : st.winner != null
+        ? `${names[st.winner]} wins the light battle!`
+        : `Light battle: ${names.map((n, i) => `${n} ${sc[i]}`).join(" – ")}`;
+  }
+  async function pollBattle() {
+    clearTimeout(battleUi.timer);
+    battleUi.timer = 0;
+    if (api.kind !== "controller") return;
+    let st = null;
+    try { st = await api.getBattle(); } catch { st = battleUi.last; }
+    showBattle(st);
+    if (st && (st.active || st.starts_in)) battleUi.timer = setTimeout(pollBattle, 700);
+  }
+  document.getElementById("battlePill").addEventListener("click", async () => {
+    if (!(await ask({ title: "Stop the light battle?", message: "Every building goes back to its own look straight away.", ok: "Stop battle", danger: true }))) return;
+    try { await api.stopBattle(); showBattle(null); toast("Light battle stopped"); } catch (e) { toast(errText(e), true); }
+  });
+  async function openBattleDialog() {
+    if (api.kind !== "controller") { toast("Light battles need the real controllers - not available in the demo.", true); return; }
+    let peers = [];
+    try { peers = await api.getPeers(); } catch (e) { toast(errText(e), true); return; }
+    const me = venueTitle(venue);
+    // Gallery vs Outdoor stage is the main match, so those start ticked.
+    const main = ["Gallery", "Outdoor stage"];
+    const rows = [{ key: "this", label: `${me} (this controller)`, ok: true, on: true }]
+      .concat(peers.map(p => ({ key: p.name, label: p.name, ok: !!p.online, on: !!p.online && main.includes(p.name),
+        note: p.online ? "" : "offline" })));
+    const boxes = rows.map(r => {
+      const cb = h("input", { type: "checkbox", checked: r.on, disabled: !r.ok, "data-key": r.key });
+      return h("label", { style: "display:flex;gap:10px;align-items:center;padding:6px 0" }, cb,
+        h("span", { text: r.label }), r.note ? h("span", { class: "hint", style: "margin:0", text: r.note }) : null);
+    });
+    const points = h("select", { "aria-label": "Points to win" }, [1, 3, 5].map(n => h("option", { value: n, text: `First to ${n}`, selected: n === 3 })));
+    const err = h("p", { class: "hint err-text", style: "margin:8px 0 0" });
+    const start = h("button", { type: "submit", class: "btn primary", text: "Start battle" });
+    const form = h("form", { method: "dialog", class: "dlg-body" },
+      h("h3", { class: "dlg-title", id: "battleTitle", text: "Light battle" }),
+      h("p", { class: "dlg-msg", text: "An automatic game of ping-pong: a ball of light crosses each building and gets returned to the next, faster every time, until someone misses. First to the target wins and floods every building in its colour. The real lights on every player take part - each goes back to its own look at the end." }),
+      h("div", { style: "margin:10px 0" }, ...boxes),
+      h("div", { class: "field" }, h("label", { text: "Match" }), points),
+      err,
+      h("div", { class: "dlg-actions" }, h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => close() }), start));
+    const dlg = h("dialog", { class: "dlg", "aria-labelledby": "battleTitle" }, form);
+    const close = () => { dlg.close(); dlg.remove(); };
+    dlg.addEventListener("cancel", e => { e.preventDefault(); close(); });
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const players = [...form.querySelectorAll("input[type=checkbox]:checked")].map(cb => cb.dataset.key);
+      if (players.length < 2) { err.textContent = "Pick at least two players."; return; }
+      start.disabled = true; start.textContent = "Starting…"; err.textContent = "";
+      try {
+        const st = await api.startBattle({ players, points_to_win: +points.value });
+        close();
+        toast(`Light battle starting: ${st.players.join(" vs ")}`);
+        showBattle(st); pollBattle();
+      } catch (ex) {
+        err.textContent = errText(ex); start.disabled = false; start.textContent = "Start battle";
+      }
+    });
+    document.body.append(dlg);
+    dlg.showModal();
+  }
+  document.getElementById("battleBtn").addEventListener("click", openBattleDialog);
+  if (api.kind !== "controller") document.getElementById("battleBtn").hidden = true;
 
   // ===================================================================
   // Channels: set DMX channels by hand (GET/PUT /api/dmx/<universe>).

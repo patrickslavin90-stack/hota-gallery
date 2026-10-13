@@ -21,6 +21,7 @@ import mimetypes
 import re
 import subprocess
 import threading
+import time
 import urllib.request
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,7 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
-from . import netconfig, paste
+from . import battle as battle_mod, netconfig, paste
 from .artnet import ARTNET_PORT, discover_nodes
 from .sacn import SACN_PORT, multicast_group
 from .config import ConfigError, off_look, save_config, validate_config
@@ -292,6 +293,91 @@ class Store:
         if values:
             self.engine.set_overrides(universe, values)
         return self.dmx(universe)
+
+    # -- light battle ---------------------------------------------------------
+
+    VENUE_NAMES = {"gallery": "Gallery", "vos": "Outdoor stage", "building": "Building"}
+
+    def battle_status(self) -> Optional[Dict[str, Any]]:
+        b = self.engine.battle
+        if b is None or b.over():
+            return None
+        return b.status()
+
+    def join_battle(self, body: dict) -> Dict[str, Any]:
+        """Play our part in a match another controller (or we) worked out:
+        {"match": ..., "me": index, "starts_in": seconds}."""
+        match, me = body.get("match"), body.get("me")
+        if not isinstance(match, dict) or not isinstance(me, int) or not 0 <= me < len(match.get("players", [])):
+            raise ConfigError("not a light battle")
+        starts_in = float(body.get("starts_in", 0))
+        if not 0 <= starts_in <= 30 or not 0 < float(match.get("duration", 0)) <= 600:
+            raise ConfigError("light battle timing out of range")
+        self.engine.battle = battle_mod.Battle(match, me, time.time() + starts_in)
+        log.info("light battle: playing %s, starts in %.1f s", match["players"][me]["name"], starts_in)
+        return self.engine.battle.status()
+
+    def stop_battle(self, everywhere: bool) -> None:
+        b = self.engine.battle
+        self.engine.battle = None
+        if everywhere and b is not None:
+            for p in b.match["players"]:
+                if p.get("url"):
+                    try:
+                        urllib.request.urlopen(urllib.request.Request(p["url"].rstrip("/") + "/api/battle", method="DELETE"), timeout=2).close()
+                    except Exception:  # noqa: BLE001 - it ends by itself anyway
+                        pass
+
+    def start_battle(self, body: dict) -> Dict[str, Any]:
+        """Host a match: {"players": [peer names, "this" for us], "points_to_win": n}.
+        Works the whole match out, sends each other player its part, then
+        joins itself. If a player can't be reached, nobody starts."""
+        cfg = self.engine.cfg
+        me_name = self.VENUE_NAMES.get(cfg.get("venue"), cfg.get("device_name") or "This controller")
+        peers = {p["name"]: p for p in self.peers_status()}
+        roster = []
+        for name in body.get("players") or []:
+            if name == "this":
+                roster.append({"name": me_name, "venue": cfg.get("venue"), "url": None})
+            elif name in peers:
+                p = peers[name]
+                if not p.get("online"):
+                    raise ConfigError(f"{name} isn't answering, so it can't play")
+                roster.append({"name": name, "venue": p.get("venue"), "url": p["url"]})
+            else:
+                raise ConfigError(f"{name!r} isn't one of the other controllers")
+        if len(roster) < 2:
+            raise ConfigError("pick at least two players")
+        players = battle_mod.colours_for(roster)
+        for p, r in zip(players, roster):
+            p["url"] = r["url"]
+        try:
+            match = battle_mod.make_match(players, int(body.get("points_to_win", 3)))
+        except ValueError as exc:
+            raise ConfigError(str(exc))
+        lead = 2.5  # seconds for the script to reach everyone
+        t0 = time.time()
+        joined, failed = [], []
+        for i, p in enumerate(players):
+            if not p["url"]:
+                continue
+            payload = json.dumps({"match": match, "me": i, "starts_in": max(0.5, lead - (time.time() - t0))}).encode()
+            try:
+                urllib.request.urlopen(urllib.request.Request(p["url"].rstrip("/") + "/api/battle", payload,
+                                                              {"Content-Type": "application/json"}, method="PUT"), timeout=3).close()
+                joined.append(p)
+            except Exception as exc:  # noqa: BLE001
+                failed.append(f"{p['name']} ({getattr(exc, 'reason', exc)})")
+        if failed:
+            for p in joined:
+                try:
+                    urllib.request.urlopen(urllib.request.Request(p["url"].rstrip("/") + "/api/battle", method="DELETE"), timeout=2).close()
+                except Exception:  # noqa: BLE001
+                    pass
+            raise ConfigError("couldn't start the battle - " + ", ".join(failed) + " didn't join (it may need updating)")
+        me = next(i for i, p in enumerate(players) if not p["url"])
+        self.engine.battle = battle_mod.Battle(match, me, t0 + lead)
+        return self.engine.battle.status()
 
     def peers_status(self) -> List[Dict[str, Any]]:
         """Each configured peer controller with its /api/status, asked by
@@ -574,6 +660,8 @@ class Handler(BaseHTTPRequestHandler):
                 "protocol": cfg.get("protocol", "artnet"),
                 "output_live": cfg.get("bind_ip") != "127.0.0.1",
                 "overrides": sum(len(c) for c in self.store.engine.overrides.values()),
+                "battle": self.store.battle_status(),
+                "battle_capable": True,
             })
         elif self.path == "/api/config":
             self._send_json(200, self.store.get_config())
@@ -603,6 +691,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, self.store.lighting_network())
         elif self.path == "/api/peers":
             self._send_json(200, self.store.peers_status())
+        elif self.path == "/api/battle":
+            self._send_json(200, self.store.battle_status())
         elif re.fullmatch(r"/api/dmx/\d+", self.path):
             self._send_json(200, self.store.dmx(int(self.path.rsplit("/", 1)[1])))
         elif self.path == "/api/artnet/status":
@@ -691,6 +781,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, self.store.set_lighting_network(body, self.connection.getsockname()[0]))
             elif self.path == "/api/peers":
                 self._send_json(200, self.store.set_peers(body))
+            elif self.path == "/api/battle/start":
+                self._send_json(200, self.store.start_battle(body))
+            elif self.path == "/api/battle":
+                self._send_json(200, self.store.join_battle(body))
             elif re.fullmatch(r"/api/dmx/\d+", self.path):
                 self._send_json(200, self.store.set_dmx(int(self.path.rsplit("/", 1)[1]), body))
             elif self.path == "/api/layouts":
@@ -714,7 +808,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "not found"})
 
     def do_DELETE(self) -> None:
-        if not paste.handle(self, "DELETE"):
+        if self.path.split("?")[0] == "/api/battle":
+            # ?all=1 from the Stop button stops every player, not just us.
+            self.store.stop_battle(everywhere="all=1" in self.path)
+            self._send_json(200, None)
+        elif not paste.handle(self, "DELETE"):
             self._send_json(404, {"error": "not found"})
 
 

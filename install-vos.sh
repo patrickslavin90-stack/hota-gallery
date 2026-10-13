@@ -96,6 +96,12 @@ install -m 0644 "$HERE/hota-vos.service" /etc/systemd/system/hota-vos.service
 systemctl daemon-reload
 systemctl enable --now hota-vos
 
+# A lighting controller must never go to sleep: block suspend/hibernate
+# for the whole machine (the desktop's own idle-sleep is switched off by
+# vos-kiosk.sh at login).
+systemctl mask --quiet sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null || true
+echo "Sleep and suspend are switched off on this PC."
+
 # Lighting network: let the service (and only it) set the wired port's
 # address through NetworkManager, from Settings -> sACN output.
 if command -v nmcli >/dev/null 2>&1 && [ -d /etc/polkit-1/rules.d ]; then

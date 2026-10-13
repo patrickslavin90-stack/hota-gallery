@@ -183,6 +183,9 @@ class Engine:
         # both 0-indexed. Applied on top of the look; in memory only, so a
         # restart always releases them.
         self.overrides: Dict[int, Dict[int, int]] = {}
+        # Light battle in progress (battle.Battle), or None. While it runs it
+        # replaces the look; the look comes back by itself when it ends.
+        self.battle: Optional[Any] = None
         self._sender: Optional[Any] = None  # ArtNetSender or SacnSender
 
     # -- live reconfiguration -------------------------------------------
@@ -225,6 +228,17 @@ class Engine:
             fixtures = self.fixtures
             current_look = self.current_look
             bbox = self.bbox
+
+        battle = self.battle
+        if battle is not None:
+            wall = time.time()
+            if battle.over(wall):
+                self.battle = None
+            else:
+                return [
+                    [battle.colour_at(bbox.normalize(x, y, "x"), wall) for x, y in fx.led_positions]
+                    for fx in fixtures
+                ]
 
         default = current_look.get("default") or self._OFF_LOOK
         overrides = current_look.get("fixtures", {})

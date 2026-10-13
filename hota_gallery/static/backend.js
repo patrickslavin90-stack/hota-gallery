@@ -41,6 +41,9 @@
     getNetwork() { return request("GET", "/api/network"); }
     getPeers() { return request("GET", "/api/peers"); }
     getDmx(u) { return request("GET", `/api/dmx/${u}`); }
+    getBattle() { return request("GET", "/api/battle"); }
+    startBattle(body) { return request("PUT", "/api/battle/start", body); }
+    stopBattle() { return request("DELETE", "/api/battle?all=1"); }
     putDmx(u, body) { return request("PUT", `/api/dmx/${u}`, body); }
     putPeers(list) { return request("PUT", "/api/peers", list); }
     putNetwork(body) { return request("PUT", "/api/network", body); }
@@ -128,6 +131,9 @@
     async putBackground() { throw new ApiError("Background images need the controller - not available in the demo."); }
     backgroundUrl() { return null; }
     async artnetStatus() { return null; }
+    async getBattle() { return null; }
+    async startBattle() { throw new ApiError("Light battles need the real controllers."); }
+    async stopBattle() { return null; }
     async getDmx() { throw new ApiError("Channel control needs the controller."); }
     async putDmx() { throw new ApiError("Channel control needs the controller."); }
     async getPeers() { return (this.cfg.peers || []).map(p => ({ ...p, online: null })); }
