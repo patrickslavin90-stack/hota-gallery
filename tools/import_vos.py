@@ -194,9 +194,23 @@ def strips_on_top_edge(fixtures: list, layout: dict, wall: dict) -> dict:
             out.append(out[-1] + math.dist(a, b))
         return out
 
-    num = lambda n: int(n.rsplit(" ", 1)[1])
-    chain = sorted((f for f in fixtures if f["zone"] in STRIP_ORDER), key=lambda f: (STRIP_ORDER.index(f["zone"]), num(f["name"])))
-    ma = arclen([layout[f["name"]] for f in chain])
+    # Order by where the pixels sit in the MA layout, not by name: the names
+    # don't run in a line (Strip 1-36 run outwards from near the left dots to
+    # the far left end; 37 starts up by Strip B 1 and comes back down to 156,
+    # next to pixel 1). Build the line from its two ends by cheapest
+    # insertion - each pixel goes where it adds the least length - which
+    # copes with the stepped edge where a plain nearest-neighbour walk
+    # strands a few pixels.
+    pts = {f["name"]: layout[f["name"]] for f in fixtures if f["zone"] in STRIP_ORDER}
+    by_x = sorted(pts, key=lambda n: pts[n][0])
+    line = [by_x[0], by_x[-1]]
+    for n in by_x[1:-1]:
+        p = pts[n]
+        best = min(range(1, len(line)), key=lambda i: math.dist(pts[line[i - 1]], p) + math.dist(p, pts[line[i]]) - math.dist(pts[line[i - 1]], pts[line[i]]))
+        line.insert(best, n)
+    named = {f["name"]: f for f in fixtures}
+    chain = [named[n] for n in line]
+    ma = arclen([pts[n] for n in line])
     top = wall["top"]
     edge = arclen(top)
     out = {}
