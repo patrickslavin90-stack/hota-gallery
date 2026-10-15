@@ -822,6 +822,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(page)
             return True
+        if "text/html" in (rh.get("Content-Type") or "") and b'id="venueSel"' not in data and b"</body>" in data:
+            # That venue's controller is on an older version with no venue
+            # dropdown: add a small one, so nobody gets stuck there.
+            names = [self.store.my_name()] + [p["name"] for p in self.store.engine.cfg.get("peers", [])]
+            opts = "".join(f'<option value="{quote(n)}"{" selected" if n == name else ""}>{n}</option>' for n in names)
+            bar = ('<div id="hotaVenueBar" style="position:fixed;right:12px;bottom:12px;z-index:99999;background:#1c1a1a;border:1px solid #484545;'
+                   'border-radius:999px;padding:6px 10px;font:13px system-ui;color:#f5f5f5">Venue '
+                   '<select onchange="location.href=\'/venue/\'+this.value" style="background:#282727;color:#f5f5f5;border:0;'
+                   f'border-radius:999px;padding:3px 8px;font:inherit">{opts}</select></div>').encode()
+            data = data.replace(b"</body>", bar + b"</body>", 1)
         self.send_response(status)
         for k in ("Content-Type", "Cache-Control", "Content-Disposition"):
             if rh.get(k):
