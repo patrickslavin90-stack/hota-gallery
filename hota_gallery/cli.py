@@ -48,6 +48,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
     server_thread = threading.Thread(target=httpd.serve_forever, name="webui", daemon=True)
     server_thread.start()
     log.info("web UI at http://%s:%d", args.host, args.port or cfg["web_port"])
+    from http.server import ThreadingHTTPServer
+    from .webapp import Handler
+    for extra in cfg.get("extra_web_ports") or []:
+        try:
+            extra_httpd = ThreadingHTTPServer((args.host, extra), Handler)
+            threading.Thread(target=extra_httpd.serve_forever, name=f"webui-{extra}", daemon=True).start()
+            log.info("web UI also on port %d", extra)
+        except OSError as exc:
+            log.warning("couldn't also serve on port %d: %s", extra, exc)
 
     # Same Store the API uses - a scheduled look change is saved and
     # reloaded exactly like a manual one, not a separate code path.

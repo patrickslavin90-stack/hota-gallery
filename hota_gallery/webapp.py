@@ -27,8 +27,9 @@ import urllib.request
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from urllib.parse import unquote
+from typing import Any, Dict, List, Optional, Tuple
+import urllib.error
+from urllib.parse import quote, unquote
 
 from . import battle as battle_mod, crowd, netconfig, paste
 from .artnet import ARTNET_PORT, discover_nodes
@@ -761,7 +762,78 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # -- venue switcher: one address for the whole precinct -------------------
+    #
+    # A browser can be pointed at another controller (a peer) with the
+    # hota_venue cookie, set by GET /venue/<name> from the header dropdown.
+    # Every request it then makes - the page, the static files, the API - is
+    # relayed to that peer and the answer passed back, so one address (the
+    # one controller you give out) shows any venue. Only configured peers
+    # can be relayed to. The cookie lasts for the browser session, so a
+    # kiosk that restarts always comes back to its own building.
+
+    def _venue_target(self) -> Optional[Tuple[str, str]]:
+        m = re.search(r"(?:^|;\s*)hota_venue=([^;]*)", self.headers.get("Cookie") or "")
+        if not m:
+            return None
+        name = unquote(m.group(1))
+        peer = next((p for p in self.store.engine.cfg.get("peers", []) if p["name"] == name), None)
+        return (name, peer["url"].rstrip("/")) if peer else None
+
+    def _venue_switch(self) -> bool:
+        if not self.path.startswith("/venue/"):
+            return False
+        name = unquote(self.path[len("/venue/"):].split("?")[0])
+        self.send_response(303)
+        if any(p["name"] == name for p in self.store.engine.cfg.get("peers", [])):
+            self.send_header("Set-Cookie", f"hota_venue={quote(name)}; Path=/; SameSite=Lax")
+        else:  # our own name (or anything unknown): back to this controller
+            self.send_header("Set-Cookie", "hota_venue=; Path=/; Max-Age=0; SameSite=Lax")
+        self.send_header("Location", "/")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
+    def _relay(self, method: str) -> bool:
+        target = self._venue_target()
+        if not target:
+            return False
+        name, base = target
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self.rfile.read(length) if length else None
+        headers = {k: v for k, v in self.headers.items() if k.lower() in ("content-type", "accept")}
+        try:
+            with urllib.request.urlopen(urllib.request.Request(base + self.path, data=body, headers=headers, method=method), timeout=15) as r:
+                status, rh, data = r.status, r.headers, r.read()
+        except urllib.error.HTTPError as exc:
+            status, rh, data = exc.code, exc.headers, exc.read()
+        except Exception as exc:  # noqa: BLE001 - the venue's controller isn't answering
+            reason = getattr(exc, "reason", exc)
+            if self.path.startswith("/api/"):
+                self._send_json(502, {"error": f"{name} isn't answering ({reason}). Switch venue from the dropdown."})
+            else:
+                page = (f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>{name} offline</title>"
+                        f"<body style='background:#0f0e0e;color:#f5f5f5;font:16px system-ui;padding:40px'><h2>{name} isn't answering</h2>"
+                        f"<p>Its controller didn't reply ({reason}).</p><p><a style='color:#f0336c' href='/venue/{quote(self.store.my_name())}'>"
+                        f"Back to {self.store.my_name()}</a></p>").encode()
+                self.send_response(502)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(page)))
+                self.end_headers()
+                self.wfile.write(page)
+            return True
+        self.send_response(status)
+        for k in ("Content-Type", "Cache-Control", "Content-Disposition"):
+            if rh.get(k):
+                self.send_header(k, rh[k])
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+        return True
+
     def do_GET(self) -> None:
+        if self._venue_switch() or self._relay("GET"):
+            return
         if paste.handle(self, "GET"):  # /paste - shared scratchpad, see paste.py
             return
         if self.path.split("?")[0] in ("/crowd", "/crowd/"):  # audience phones - crowd.py
@@ -785,6 +857,7 @@ class Handler(BaseHTTPRequestHandler):
                 "current_look": cfg["current_look"],
                 # For other controllers' "Other controllers" card.
                 "venue": cfg.get("venue", "gallery"),
+                "venue_name": self.store.my_name(),
                 "protocol": cfg.get("protocol", "artnet"),
                 "output_live": cfg.get("bind_ip") != "127.0.0.1" and cfg.get("output_enabled", True),
                 "output_enabled": cfg.get("output_enabled", True),
@@ -855,6 +928,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "not found"})
 
     def do_PUT(self) -> None:
+        if self._relay("PUT"):
+            return
         # Raw-bytes upload, not JSON - handled before the generic body read
         # below, which assumes (and would choke on non-UTF8) JSON.
         if self.path.startswith("/api/layouts/") and self.path.endswith("/background"):
@@ -943,6 +1018,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
     def do_POST(self) -> None:
+        if self._relay("POST"):
+            return
         if self.path == "/api/crowd/tap":
             try:
                 self._send_json(200, self.store.crowd_tap(self._read_json(), self.client_address[0]))
@@ -952,6 +1029,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "not found"})
 
     def do_DELETE(self) -> None:
+        if self._relay("DELETE"):
+            return
         if self.path.split("?")[0] == "/api/battle":
             # ?all=1 from the Stop button stops every player, not just us.
             self.store.stop_battle(everywhere="all=1" in self.path)

@@ -2289,6 +2289,21 @@
   const dmx = { universe: null, sel: new Set(), anchor: null, data: null, timer: 0, cells: [] };
   $("#parked").addEventListener("click", () => showTab("channels"));
   $("#outputOff").addEventListener("click", () => showTab("settings"));
+
+  // Venue switcher: picking another venue points this browser at that
+  // controller through this one (GET /venue/<name> sets a session cookie
+  // and the server relays everything) - one address for the whole precinct.
+  (async () => {
+    const sel = document.getElementById("venueSel");
+    if (api.kind !== "controller") return;
+    let me = null, peers = [];
+    try { me = (await (await fetch("/api/status", { cache: "no-store" })).json()).venue_name; peers = await api.getPeers(); } catch { return; }
+    if (!me || !peers.length) return;
+    const opts = [{ name: me, online: true }, ...peers];
+    sel.replaceChildren(...opts.map(p => h("option", { value: p.name, text: p.name + (p.online === false ? " (offline)" : ""), selected: p.name === me, disabled: p.online === false })));
+    sel.hidden = false;
+    sel.addEventListener("change", () => { if (sel.value !== me) location.href = "/venue/" + encodeURIComponent(sel.value); });
+  })();
   // A function declaration looking the pill up itself, so the status poll
   // can call it however early it runs.
   function showParked(n) {

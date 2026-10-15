@@ -165,6 +165,9 @@ CONFIG_DEFAULTS: Dict[str, Any] = {
     "battle_auto": {"enabled": False, "opponent": None, "time": "19:30", "points_to_win": 3},
     # False = send no lighting data at all (e.g. a console has the rig).
     "output_enabled": True,
+    # Extra ports the web UI also answers on, e.g. [80] so the address needs
+    # no ":8080" (the service needs CAP_NET_BIND_SERVICE for ports < 1024).
+    "extra_web_ports": [],
     # All-time results of finished ping-pong matches, per pairing:
     # {"Gallery vs Outdoor stage": {"Gallery": 7, "Outdoor stage": 5}}.
     "battle_record": {},
@@ -681,6 +684,9 @@ def validate_config(raw: Any) -> Dict[str, Any]:
             errors.append(f"battle_auto.points_to_win must be 1-9, got {ba.get('points_to_win')!r}")
         if ba.get("opponent") is not None and not isinstance(ba.get("opponent"), str):
             errors.append("battle_auto.opponent must be a peer's name or null")
+    ewp = cfg["extra_web_ports"]
+    if not isinstance(ewp, list) or not all(isinstance(x, int) and not isinstance(x, bool) and 1 <= x <= 65535 for x in ewp):
+        errors.append(f"extra_web_ports must be a list of port numbers, got {ewp!r}")
     if not isinstance(cfg["output_enabled"], bool):
         errors.append(f"output_enabled must be true or false, got {cfg['output_enabled']!r}")
     if not isinstance(cfg["battle_record"], dict):

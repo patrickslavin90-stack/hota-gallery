@@ -550,3 +550,6 @@ a.link:hover { color: #fff; }
 .dmx-cell.sel { outline:2px solid var(--accent-2); outline-offset:0; }
 .dmx-sel { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:12px; margin-bottom:14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
 .dmx-sel input[type=range] { width:240px; }
+
+/* Venue switcher (header): one address for the whole precinct. */
+.venue-sel { background: var(--surface-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 600; margin-right: 10px; }
