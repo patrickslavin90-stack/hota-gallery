@@ -2694,6 +2694,8 @@
     if (api.kind === "controller" && !blindOn) refreshCurrentLook(); // pick up anything changed elsewhere
     HotaExport.open({
       cfg, elev, layout: currentLayout(), view: currentView || "all",
+      // The outdoor stage gets a front elevation from its 3D model.
+      stage: venue === "vos" && vb && v3d ? { vb, v3d } : null,
       title: i >= 0 ? presetName(presets[i], i) : "Untitled concept",
       subtitle: describeLook(activeLook()) + (blindOn ? " (blind - not live)" : ""),
       getCurrentLook: () => activeLook(),

@@ -51,6 +51,39 @@
     return logoPromise;
   }
 
+  // Any other image next to this script (the stage's wall linework), once.
+  const imageCache = new Map();
+  function loadImage(name) {
+    if (!imageCache.has(name)) imageCache.set(name, new Promise(res => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = () => res(null);
+      img.src = new URL(name, SCRIPT_URL || location.href).href;
+    }));
+    return imageCache.get(name);
+  }
+
+  // Outdoor stage front elevation, from the same model as the 3D view
+  // (vos-building.json + vos3d.json): the Voronoi wall's linework
+  // (vos-wall-lines.png, unfolded) drawn onto its plan so the wings come out
+  // foreshortened as seen from the audience, the canopy faintly behind, a
+  // ground line, and every light at its real 3D position. World units are
+  // metres, x across the stage, y down (= -height).
+  function stageGeometry(stage) {
+    const w = stage.vb.wall, fold = w.fold_u, a = w.wing_angle_deg * Math.PI / 180;
+    const planX = u => Math.abs(u) <= fold ? u : Math.sign(u) * (fold + (Math.abs(u) - fold) * Math.cos(a));
+    const c = stage.vb.canopy;
+    const canopy = c.lines.map(pl => pl.map(q => [q[0] / 1000, -q[2] / 1000]));
+    const legs = c.legs.map(pl => pl.map(q => [q[0] / 1000, -q[2] / 1000]));
+    const xs = [planX(w.u0), planX(w.u1), ...canopy.flat().map(p => p[0] * 1000), ...legs.flat().map(p => p[0] * 1000)];
+    const top = Math.min(...canopy.flat().map(p => p[1]), -Math.max(...w.top.map(q => q[1])) / 1000);
+    const ground = -stage.vb.ground_z / 1000;
+    return {
+      planX, w, canopy, legs, ground,
+      box: { minX: Math.min(...xs) / 1000 - 0.5, maxX: Math.max(...xs) / 1000 + 0.5, minY: top - 0.4, maxY: ground + 0.2 },
+    };
+  }
+
   // Longest period in the look(s), so the default length shows a full cycle.
   function suggestLength(currentLook) {
     const looks = [currentLook.default, ...Object.values(currentLook.fixtures || {})].filter(Boolean);
@@ -79,17 +112,20 @@
 
     const building = job.elev && job.layout && job.layout.name === "Building";
     const elevs = building ? job.elev.elevations.filter(e => job.view === "all" || e.name === job.view) : [];
+    const stage = job.stage && job.stage.vb && job.stage.v3d ? stageGeometry(job.stage) : null;
 
-    // World box to fit: chosen elevations, or the fixtures themselves.
+    // World box to fit: chosen elevations, the stage elevation, or the fixtures themselves.
     let box;
-    if (elevs.length) {
+    if (stage) {
+      box = stage.box;
+    } else if (elevs.length) {
       const ys = elevs.flatMap(e => e.outline.flat().map(p => p[1]));
       box = { minX: Math.min(...elevs.map(e => e.x0)), maxX: Math.max(...elevs.map(e => e.x1)), minY: Math.min(...ys), maxY: Math.max(...ys) };
     } else {
       const pts = Object.values(job.layout ? job.layout.fixtures : {}).flat();
       box = { minX: Math.min(...pts.map(p => p[0])), maxX: Math.max(...pts.map(p => p[0])), minY: Math.min(...pts.map(p => p[1])), maxY: Math.max(...pts.map(p => p[1])) };
     }
-    const labelRoom = elevs.length ? 26 * u : 0;
+    const labelRoom = elevs.length || stage ? 26 * u : 0;
     const s = Math.min(area.w / (box.maxX - box.minX || 1), (area.h - labelRoom) / (box.maxY - box.minY || 1));
     const ox = area.x + (area.w - (box.maxX - box.minX) * s) / 2 - box.minX * s;
     const oy = area.y + (area.h - labelRoom - (box.maxY - box.minY) * s) / 2 - box.minY * s;
@@ -112,6 +148,31 @@
       b.beginPath();
       for (const p of polys) { b.moveTo(X(p[0][0]), Y(p[0][1])); for (let i = 1; i < p.length; i++) b.lineTo(X(p[i][0]), Y(p[i][1])); if (close) b.closePath(); }
     };
+    if (stage) {
+      const S = stage, w = S.w;
+      // Canopy and legs, faint, behind the wall.
+      b.strokeStyle = "rgba(245,245,245,.10)"; b.lineWidth = 0.8 * u; path(S.canopy, false); b.stroke();
+      b.strokeStyle = "rgba(245,245,245,.22)"; b.lineWidth = 2.2 * u; b.lineCap = "round"; path(S.legs, false); b.stroke();
+      // Wall: the unfolded linework image in three slices - left wing,
+      // centre, right wing - each stretched onto its span across the front.
+      const img = job.stage.lines;
+      if (img) {
+        b.save();
+        b.beginPath(); b.rect(0, 0, W, Y(S.ground)); b.clip(); // nothing below the ground
+        const span = w.u1 - w.u0, iw = img.naturalWidth, ih = img.naturalHeight;
+        for (const [ua, ub] of [[w.u0, -w.fold_u], [-w.fold_u, w.fold_u], [w.fold_u, w.u1]]) {
+          const sx = (ua - w.u0) / span * iw, sw = (ub - ua) / span * iw;
+          const dx = X(S.planX(ua) / 1000), dw = X(S.planX(ub) / 1000) - dx;
+          b.drawImage(img, sx, 0, sw, ih, dx, Y(-w.v_top / 1000), dw, Y(-w.v_bottom / 1000) - Y(-w.v_top / 1000));
+        }
+        b.restore();
+      }
+      // Ground line and the sheet label, like the gallery's elevations.
+      b.strokeStyle = "rgba(245,245,245,.35)"; b.lineWidth = 1 * u;
+      b.beginPath(); b.moveTo(X(S.box.minX), Y(S.ground)); b.lineTo(X(S.box.maxX), Y(S.ground)); b.stroke();
+      b.fillStyle = "rgba(245,245,245,.6)"; b.font = `500 ${11 * u}px Rubik, sans-serif`; b.textBaseline = "alphabetic";
+      b.fillText("Front elevation", X(S.box.minX), Y(S.ground) + 18 * u);
+    }
     for (const e of elevs) {
       b.lineWidth = 1 * u;
       b.strokeStyle = "rgba(245,245,245,.07)"; path(e.grid, false); b.stroke();
@@ -136,6 +197,11 @@
     const fixtures = job.cfg.fixtures;
     const leds = [];
     fixtures.forEach((f, fi) => {
+      if (stage) {
+        const q = job.stage.v3d.fixtures[`${f.universe}:${f.address}`];
+        if (q) leds.push({ fi, i: 0, x: X(q[0] / 1000), y: Y(-q[2] / 1000), dish: /dots$/i.test(f.zone || "") });
+        return;
+      }
       const p = job.layout && job.layout.fixtures[`${f.universe}:${f.address}`];
       if (!p) return;
       if (elevs.length && job.view !== "all") {
@@ -149,7 +215,9 @@
         leds.push({ fi, i, x: X(p[0][0] + (p[1][0] - p[0][0]) * t), y: Y(p[0][1] + (p[1][1] - p[0][1]) * t), dish: f.led_type === "RGB" });
       }
     });
-    const r = clamp(s * 22, 1.4, 5 * u), rDish = clamp(s * 38, 2.6, 9 * u);
+    // Gallery sizes are in its drawing units; the stage's are metres.
+    const r = stage ? clamp(s * 0.075, 1.1 * u, 4 * u) : clamp(s * 22, 1.4, 5 * u);
+    const rDish = stage ? clamp(s * 0.2, 2.2 * u, 7 * u) : clamp(s * 38, 2.6, 9 * u);
 
     return {
       canvas,
@@ -236,7 +304,9 @@
     // Open straight away; the logo and fonts are usually preloaded, and if
     // not, the preview redraws the moment they arrive.
     let logo = null;
-    const assetsReady = preload().then(l => { logo = l; if (dlg.isConnected) rebuild(); });
+    const stage = opts.stage ? { ...opts.stage, lines: null } : null;
+    const assetsReady = Promise.all([preload(), stage ? loadImage("vos-wall-lines.png") : null])
+      .then(([l, lines]) => { logo = l; if (stage) stage.lines = lines; if (dlg.isConnected) rebuild(); });
 
     const views = opts.elev && opts.layout && opts.layout.name === "Building" ? ["all", ...opts.elev.elevations.map(e => e.name)] : ["all"];
     const state = { title: opts.title || "Untitled concept", subtitle: opts.subtitle || "", view: views.includes(opts.view) ? opts.view : "all", size: "medium", seconds: suggestLength(cfg.current_look) };
@@ -281,7 +351,7 @@
 
     // Live preview of the card at the chosen settings.
     let previewR = null, raf = 0, t0 = performance.now(), abort = null, url = null;
-    const job = () => ({ cfg, elev: opts.elev, layout: opts.layout, view: state.view, title: state.title, subtitle: state.subtitle, logo, engine });
+    const job = () => ({ cfg, elev: opts.elev, layout: opts.layout, view: state.view, title: state.title, subtitle: state.subtitle, logo, engine, stage });
     const rebuild = () => { previewR = makeRenderer(job(), 480, 270); };
     rebuild();
     // Follow the live look while the dialog is open: if it changes (a save
