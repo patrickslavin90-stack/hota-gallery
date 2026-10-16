@@ -16,6 +16,7 @@
     <div class="brand">
       <img src="static/hota-logo.svg" alt="HOTA Home of the Arts" height="18">
       <span>Gallery façade lighting</span>
+      <select id="venueSel" class="venue-sel" data-native hidden aria-label="Venue" title="Switch to another venue's lighting"></select>
     </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" id="tab-live" aria-controls="view-live" aria-selected="true" data-tab="live">Live</button>
@@ -24,7 +25,6 @@
       <button role="tab" id="tab-settings" aria-controls="view-settings" aria-selected="false" data-tab="settings">Settings</button>
     </nav>
     <div class="status">
-      <select id="venueSel" class="venue-sel" hidden aria-label="Venue" title="Switch to another venue's lighting"></select>
       <div class="conn" id="conn" data-kind="pending"><i></i><span>Connecting…</span></div>
       <button type="button" class="lights" id="outputOff" data-state="bad" hidden title="This controller isn't sending to the lights - turn it back on under Settings"><i></i><span>Output off</span></button>
       <button type="button" class="lights" id="battlePill" data-state="ok" hidden title="Click to stop the light battle"><i></i><span></span></button>

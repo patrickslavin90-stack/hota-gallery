@@ -2302,6 +2302,7 @@
     const opts = [{ name: me, online: true }, ...peers];
     sel.replaceChildren(...opts.map(p => h("option", { value: p.name, text: p.name + (p.online === false ? " (offline)" : ""), selected: p.name === me, disabled: p.online === false })));
     sel.hidden = false;
+    document.querySelector(".brand > span").hidden = true; // the dropdown is the title now
     sel.addEventListener("change", () => { if (sel.value !== me) location.href = "/venue/" + encodeURIComponent(sel.value); });
   })();
   // A function declaration looking the pill up itself, so the status poll
