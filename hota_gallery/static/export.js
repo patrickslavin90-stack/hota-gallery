@@ -115,8 +115,11 @@
     const stage = job.stage && job.stage.vb && job.stage.v3d ? stageGeometry(job.stage) : null;
 
     // World box to fit: chosen elevations, the stage elevation, or the fixtures themselves.
+    const scene = job.scene || null; // main building street view (building-scene.js)
     let box;
-    if (stage) {
+    if (scene) {
+      box = scene.box;
+    } else if (stage) {
       box = stage.box;
     } else if (elevs.length) {
       const ys = elevs.flatMap(e => e.outline.flat().map(p => p[1]));
@@ -125,7 +128,7 @@
       const pts = Object.values(job.layout ? job.layout.fixtures : {}).flat();
       box = { minX: Math.min(...pts.map(p => p[0])), maxX: Math.max(...pts.map(p => p[0])), minY: Math.min(...pts.map(p => p[1])), maxY: Math.max(...pts.map(p => p[1])) };
     }
-    const labelRoom = elevs.length || stage ? 26 * u : 0;
+    const labelRoom = elevs.length || stage || scene ? 26 * u : 0;
     const s = Math.min(area.w / (box.maxX - box.minX || 1), (area.h - labelRoom) / (box.maxY - box.minY || 1));
     const ox = area.x + (area.w - (box.maxX - box.minX) * s) / 2 - box.minX * s;
     const oy = area.y + (area.h - labelRoom - (box.maxY - box.minY) * s) / 2 - box.minY * s;
@@ -137,7 +140,7 @@
     b.fillStyle = BG; b.fillRect(0, 0, W, H);
     // header
     b.fillStyle = "rgba(245,245,245,.55)"; b.font = `400 ${13 * u}px Rubik, sans-serif`; b.textBaseline = "middle";
-    b.fillText(job.cfg.venue === "vos" ? "Outdoor Stage Lighting Concept" : "Gallery Façade Lighting Concept", pad, headH / 2);
+    b.fillText({ vos: "Outdoor Stage Lighting Concept", building: "Building Lighting Concept" }[job.cfg.venue] || "Gallery Façade Lighting Concept", pad, headH / 2);
     if (job.logo) {
       const lh = 20 * u, lw = lh * (job.logo.naturalWidth / job.logo.naturalHeight || 343 / 51);
       b.drawImage(job.logo, W - pad - lw, headH / 2 - lh / 2, lw, lh);
@@ -148,6 +151,7 @@
       b.beginPath();
       for (const p of polys) { b.moveTo(X(p[0][0]), Y(p[0][1])); for (let i = 1; i < p.length; i++) b.lineTo(X(p[i][0]), Y(p[i][1])); if (close) b.closePath(); }
     };
+    if (scene) scene.drawBase(b, X, Y, s, u, { artwork: job.artwork });
     if (stage) {
       const S = stage, w = S.w;
       // Canopy and legs, faint, behind the wall.
@@ -212,12 +216,12 @@
       const n = f.led_count;
       for (let i = 0; i < n; i++) {
         const t = n > 1 ? i / (n - 1) : 0;
-        leds.push({ fi, i, x: X(p[0][0] + (p[1][0] - p[0][0]) * t), y: Y(p[0][1] + (p[1][1] - p[0][1]) * t), dish: f.led_type === "RGB" });
+        leds.push({ fi, i, x: X(p[0][0] + (p[1][0] - p[0][0]) * t), y: Y(p[0][1] + (p[1][1] - p[0][1]) * t), dish: !!scene || f.led_type === "RGB" });
       }
     });
     // Gallery sizes are in its drawing units; the stage's are metres.
     const r = stage ? clamp(s * 0.075, 1.1 * u, 4 * u) : clamp(s * 22, 1.4, 5 * u);
-    const rDish = stage ? clamp(s * 0.2, 2.2 * u, 7 * u) : clamp(s * 38, 2.6, 9 * u);
+    const rDish = stage ? clamp(s * 0.2, 2.2 * u, 7 * u) : scene ? clamp(s * 0.3, 2.6 * u, 7 * u) : clamp(s * 38, 2.6, 9 * u);
 
     return {
       canvas,
@@ -237,6 +241,7 @@
             last = L; continue;
           }
           const col = `rgb(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0})`;
+          if (scene) scene.wash(lctx, L.x, L.y, col, s, Y);
           lctx.fillStyle = col;
           if (!L.dish && last && last.fi === L.fi) {
             lctx.strokeStyle = col; lctx.lineWidth = r * 1.5; lctx.lineCap = "round";
@@ -328,6 +333,15 @@
     const bar = h("div", { class: "gif-bar", hidden: true }, h("i"));
     const result = h("div", { class: "gif-result", hidden: true });
     const createBtn = h("button", { type: "button", class: "btn primary", text: "Create GIF" });
+    // Main building: optional artwork for the billboard (stays in this
+    // browser - it's only drawn into the GIF, never uploaded).
+    let artwork = null;
+    const artIn = h("input", { type: "file", accept: "image/*", "aria-label": "Billboard artwork", style: "display:none" });
+    const artName = h("span", { class: "hint", style: "margin:0", text: "HOTA logo" });
+    const artClear = h("button", { type: "button", class: "btn", text: "Clear", hidden: true });
+    const artField = opts.scene ? h("div", { class: "gif-field" }, h("span", { text: "Billboard" }),
+      h("div", { class: "gif-row", style: "align-items:center" },
+        h("button", { type: "button", class: "btn", text: "Choose artwork…", onclick: () => artIn.click() }), artClear, artName), artIn) : null;
     const cancelBtn = h("button", { type: "button", class: "btn", text: "Close" });
 
     const dlg = h("dialog", { class: "dlg dlg-wide", "aria-labelledby": "gifTitle" },
@@ -339,7 +353,8 @@
           h("div", { class: "gif-fields" },
             h("label", { class: "gif-field" }, h("span", { text: "Concept name" }), nameIn),
             h("label", { class: "gif-field" }, h("span", { text: "Description" }), subIn),
-            h("label", { class: "gif-field" }, h("span", { text: "View" }), viewSel),
+            views.length > 1 ? h("label", { class: "gif-field" }, h("span", { text: "View" }), viewSel) : null,
+            artField,
             h("div", { class: "gif-row" },
               h("label", { class: "gif-field" }, h("span", { text: "Length (s)" }), secIn),
               h("label", { class: "gif-field", style: "flex:1" }, h("span", { text: "Size" }), sizeSel)),
@@ -351,7 +366,7 @@
 
     // Live preview of the card at the chosen settings.
     let previewR = null, raf = 0, t0 = performance.now(), abort = null, url = null;
-    const job = () => ({ cfg, elev: opts.elev, layout: opts.layout, view: state.view, title: state.title, subtitle: state.subtitle, logo, engine, stage });
+    const job = () => ({ cfg, elev: opts.elev, layout: opts.layout, view: state.view, title: state.title, subtitle: state.subtitle, logo, engine, stage, scene: opts.scene || null, artwork });
     const rebuild = () => { previewR = makeRenderer(job(), 480, 270); };
     rebuild();
     // Follow the live look while the dialog is open: if it changes (a save
@@ -381,6 +396,15 @@
     nameIn.addEventListener("input", () => { state.title = nameIn.value.trim(); rebuild(); });
     subIn.addEventListener("input", () => { subEdited = true; state.subtitle = subIn.value.trim(); rebuild(); });
     viewSel.addEventListener("change", () => { state.view = viewSel.value; rebuild(); });
+    artIn.addEventListener("change", () => {
+      const f = artIn.files && artIn.files[0];
+      if (!f) return;
+      const img = new Image();
+      img.onload = () => { artwork = img; artName.textContent = f.name; artClear.hidden = false; rebuild(); };
+      img.onerror = () => { artName.textContent = "That file isn't an image this browser can open."; };
+      img.src = URL.createObjectURL(f);
+    });
+    artClear.addEventListener("click", () => { artwork = null; artIn.value = ""; artName.textContent = "HOTA logo"; artClear.hidden = true; rebuild(); });
     sizeSel.addEventListener("change", () => { state.size = sizeSel.value; updateEstimate(); });
     secIn.addEventListener("change", () => { state.seconds = clamp(+secIn.value || 4, 1, 20); secIn.value = state.seconds; t0 = performance.now(); updateEstimate(); });
     updateEstimate();

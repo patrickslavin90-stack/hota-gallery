@@ -264,14 +264,20 @@
   let b3d = null; // gallery: rough 3D massing derived from the elevation grids (tools/build_3d.py)
   let v3d = null; // outdoor stage: per-fixture 3D positions (tools/import_vos.py)
   let vb = null;  // outdoor stage: building model from the as-builts (tools/build_vos_model.py)
+  // Main building: the street-view sketch (building-scene.js) and its
+  // default "Street view" layout, built-in like the gallery's until saved.
+  const scene = venue === "building" ? window.HotaBuildingScene || null : null;
   // Gallery fixture positions on the elevations, shipped with the UI. Used
   // when the controller's config doesn't have its own "Building" layout
   // yet - it gets saved there the first time someone moves fixtures in it.
   let builtinBuilding = null;
   if (venue === "gallery") {
     [elev, b3d, builtinBuilding] = await Promise.all(["static/elevations.json", "static/building3d.json", "static/building-layout.json"].map(getJson));
-  } else {
+  } else if (venue === "vos") {
     [v3d, vb] = await Promise.all(["static/vos3d.json", "static/vos-building.json"].map(getJson));
+  } else if (scene) {
+    await scene.ready;
+    builtinBuilding = scene.layout(cfg.fixtures);
   }
   document.querySelector(".brand > span").textContent = VENUE.title;
   document.title = { vos: "HOTA Outdoor Stage Lighting", building: "HOTA Building Lighting" }[venue] || document.title;
@@ -282,7 +288,7 @@
   const isDot = f => venue === "vos" ? /dots$/i.test(f.zone || "") : venue === "building" ? true : f.zone === "dishes" || f.led_type === "RGB";
   const allLayouts = () => {
     const ls = cfg.layouts || [];
-    return elev && builtinBuilding && !ls.some(l => l.name === "Building") ? [builtinBuilding, ...ls] : ls;
+    return builtinBuilding && !ls.some(l => l.name === builtinBuilding.name) ? [builtinBuilding, ...ls] : ls;
   };
 
   // Where the controller is: "this computer" when served from localhost
@@ -632,6 +638,7 @@
   const activeLook = () => (blindOn ? blind : cfg.current_look);
 
   const isBuilding = () => live.layoutName === "Building" && elev;
+  const isScene = () => scene && live.layoutName === "Street view";
   const currentLayout = () => allLayouts().find(l => l.name === live.layoutName) || null;
   const layoutFixtures = () => {
     const l = live.edit && live.draft ? live.draft : currentLayout();
@@ -666,6 +673,7 @@
       for (const e of pick) for (const p of e.outline) for (const q of p) ys.push(q[1]);
       return { minX: Math.min(...pick.map(e => e.x0)), maxX: Math.max(...pick.map(e => e.x1)), minY: Math.min(...ys), maxY: Math.max(...ys) };
     }
+    if (isScene()) return scene.box;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const pts of Object.values(layoutFixtures())) for (const [x, y] of pts) {
       minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
@@ -766,6 +774,8 @@
         c.strokeStyle = "rgba(245,245,245,.25)"; c.lineWidth = 1;
         c.beginPath(); c.moveTo(tx, ty + 6.5); c.lineTo(sx(e.x1), ty + 6.5); c.stroke();
       }
+    } else if (isScene()) {
+      scene.drawBase(c, sx, sy, s);
     } else {
       const img = backgroundImage(currentLayout());
       if (img) {
@@ -839,6 +849,7 @@
         prev = L; continue;
       }
       const col = `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+      if (isScene()) scene.wash(lctx, L.x, L.y, col, s, sy);
       lctx.fillStyle = col;
       // Strip LEDs join up into tape with a short segment to the previous LED.
       if (!L.dish && prev && prev.key === L.key) {
@@ -1088,7 +1099,7 @@
   const layoutSelect = $("#layoutSelect");
   function renderLayoutSelect() {
     const layouts = allLayouts();
-    if (!layouts.find(l => l.name === live.layoutName)) live.layoutName = (layouts.find(l => l.name === "Building") || layouts[0] || {}).name || null;
+    if (!layouts.find(l => l.name === live.layoutName)) live.layoutName = (layouts.find(l => l.name === (scene ? "Street view" : "Building")) || layouts[0] || {}).name || null;
     layoutSelect.replaceChildren(...layouts.map(l => h("option", { value: l.name, text: l.name, selected: l.name === live.layoutName })));
     const seg = $("#viewSeg");
     seg.hidden = !isBuilding() || view3dOn;
@@ -2696,6 +2707,7 @@
       cfg, elev, layout: currentLayout(), view: currentView || "all",
       // The outdoor stage gets a front elevation from its 3D model.
       stage: venue === "vos" && vb && v3d ? { vb, v3d } : null,
+      scene: isScene() ? scene : null,
       title: i >= 0 ? presetName(presets[i], i) : "Untitled concept",
       subtitle: describeLook(activeLook()) + (blindOn ? " (blind - not live)" : ""),
       getCurrentLook: () => activeLook(),
