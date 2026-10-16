@@ -1355,7 +1355,15 @@
   // -- live look editor -------------------------------------------------------
   const sendLookRemote = latestOnly(async (look, keys) => {
     if (keys.length) cfg.current_look = await api.putSelection(keys, look);
-    else cfg.current_look.default = await api.putLook(look);
+    else {
+      // The controller answers with the whole current look ({default,
+      // fixtures}); the in-browser demo with just the default. Storing the
+      // controller's answer as the default nested one look inside another,
+      // and the next selection edit sent that and was rejected.
+      const r = await api.putLook(look);
+      if (r && typeof r === "object" && "default" in r) cfg.current_look = r;
+      else cfg.current_look.default = r;
+    }
     updateTarget();
     $("#selRevert").hidden = !live.selection.size || ![...live.selection].some(k => cfg.current_look.fixtures[k]);
   });
