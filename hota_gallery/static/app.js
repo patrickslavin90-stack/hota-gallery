@@ -451,7 +451,7 @@
   function LookEditor(root, onChange, opts = {}) {
     let look = clone(HotaEngine.OFF);
     const memory = { colour: {}, effect: {}, video: {} }; // last params per mode, so flipping modes doesn't lose work
-    const open = { colour: true, effect: opts.openEffect !== false, video: false };
+    const open = { colour: true, effect: opts.openEffect === true, video: false }; // effect folded unless asked (the schedule drawer opens it)
 
     const changed = () => { onChange(clone(look)); };
 
