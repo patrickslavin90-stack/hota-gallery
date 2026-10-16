@@ -149,15 +149,12 @@
     c.font = `400 ${fs}px Rubik, sans-serif`; c.fillText("central", hw, 0);
     c.restore();
 
-    // Ground, and the sheet title, drawing-sheet style.
+    // Ground, and its label - same style as the stage's "Front elevation"
+    // and the gallery's elevation names.
     c.strokeStyle = "rgba(245,245,245,.35)"; c.lineWidth = 1 * u;
     c.beginPath(); seg(box.minX, 0, box.maxX, 0); c.stroke();
-    c.fillStyle = "rgba(245,245,245,.85)"; c.font = `500 ${12 * u}px Rubik, sans-serif`; c.textBaseline = "alphabetic";
-    const title = "HOTA Central street elevation";
-    c.fillText(title, X(box.minX), Y(0) + 20 * u);
-    const tw = c.measureText(title).width;
-    c.fillStyle = "rgba(245,245,245,.4)"; c.font = `${11 * u}px Rubik, sans-serif`;
-    c.fillText("not to scale", X(box.minX) + tw + 10 * u, Y(0) + 20 * u);
+    c.fillStyle = "rgba(245,245,245,.6)"; c.font = `500 ${11 * u}px Rubik, sans-serif`; c.textBaseline = "alphabetic";
+    c.fillText("Street elevation", X(box.minX), Y(0) + 18 * u);
     c.restore();
   }
 
