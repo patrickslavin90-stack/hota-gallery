@@ -242,6 +242,29 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .presets header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .presets header h3 { font-size: 12px; color: var(--text-2); }
 .presets header .hint { margin: 0; }
+/* Presets, folded behind their header (closed by default). */
+.presets > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.presets > summary::-webkit-details-marker { display: none; }
+.presets > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; margin-right: 2px; }
+.presets[open] > summary::before { transform: rotate(45deg); }
+.presets > summary h3 { font-size: 12px; color: var(--text-2); }
+.presets > summary .hint { margin: 0; }
+.presets[open] > summary { margin-bottom: 8px; }
+/* "More selections" under the basic selection chips. */
+.more-sel { margin-top: 10px; }
+.more-sel > summary { cursor: pointer; color: var(--muted); font-size: 12px; list-style: none; display: flex; align-items: center; gap: 6px; }
+.more-sel > summary::-webkit-details-marker { display: none; }
+.more-sel > summary::before { content: ""; width: 5px; height: 5px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
+.more-sel[open] > summary::before { transform: rotate(45deg); }
+.more-sel[open] > summary { margin-bottom: 4px; }
+.layout-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.layout-acts .file { display: inline-flex; align-items: center; cursor: pointer; }
+/* Colour: the quick solid colours, then the moving-colour modes. */
+.sw-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sw-btn { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line-2); padding: 0; }
+.sw-btn[aria-pressed="true"] { border-color: var(--text); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sw-btn.off { background: linear-gradient(135deg, transparent 45%, var(--muted) 45% 55%, transparent 55%), var(--surface-2); }
+.colour-more { color: var(--muted); font-size: 12px; margin: 12px 0 6px; }
 .preset-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
 .preset {
   position: relative; flex: 0 0 132px;
@@ -559,3 +582,5 @@ a.link:hover { color: #fff; }
   background-position: calc(100% - 13px) 55%, calc(100% - 8px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 .venue-sel:hover, .venue-sel:focus-visible { border-color: var(--line-2); color: var(--text); background-color: var(--surface-2); }
 .venue-sel option { background: var(--surface); color: var(--text); }
+/* A hidden native select hides its styled stand-in too (e.g. a one-layout venue). */
+select[hidden] + .ps-trigger { display: none; }

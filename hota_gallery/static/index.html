@@ -21,7 +21,7 @@
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" id="tab-live" aria-controls="view-live" aria-selected="true" data-tab="live">Live</button>
       <button role="tab" id="tab-schedules" aria-controls="view-schedules" aria-selected="false" data-tab="schedules">Schedules</button>
-      <button role="tab" id="tab-channels" aria-controls="view-channels" aria-selected="false" data-tab="channels">Channels</button>
+      <button role="tab" id="tab-channels" aria-controls="view-channels" aria-selected="false" data-tab="channels" hidden>Channels</button>
       <button role="tab" id="tab-settings" aria-controls="view-settings" aria-selected="false" data-tab="settings">Settings</button>
     </nav>
     <div class="status">
@@ -52,27 +52,10 @@
             <button type="button" class="btn" id="toggle3d" aria-pressed="false" hidden title="Rotate around a rough 3D model of the gallery">3D</button>
             <div class="seg" id="view3dSeg" role="group" aria-label="Camera" hidden></div>
             <span class="spacer"></span>
-            <button type="button" class="btn" id="battleBtn" title="Start a light battle with the other controllers">Battle</button>
             <button type="button" class="btn" id="toggleBlind" aria-pressed="false" title="Program and preview a look without sending anything to the real lights">Blind</button>
             <button type="button" class="btn primary" id="blindGoLive" hidden title="Send the blind look to the real lights now">Go live</button>
             <button type="button" class="btn" id="clearProgram" title="Drop every manual look and show whatever the schedule says should be playing right now. Click again to confirm.">Clear</button>
             <button type="button" class="btn" id="exportGif" title="Save the current live look as a looping GIF for clients or approval">Export GIF</button>
-            <div class="menu">
-              <button type="button" class="btn" id="layoutMenuBtn" aria-haspopup="true" aria-expanded="false">Layout</button>
-              <div class="menu-pop" id="layoutMenu" hidden style="left:auto;right:0">
-                <button type="button" data-act="edit">Move fixtures…</button>
-                <hr>
-                <button type="button" data-act="new">New layout…</button>
-                <button type="button" data-act="rename">Rename layout…</button>
-                <button type="button" data-act="delete">Delete layout…</button>
-                <hr>
-                <button type="button" data-act="add-sel">Add selection to this layout</button>
-                <button type="button" data-act="remove-sel">Remove selection from this layout</button>
-                <hr>
-                <label class="file">Background image…<input type="file" accept="image/png,image/jpeg" id="bgFile" hidden></label>
-                <button type="button" data-act="bg-clear">Remove background image</button>
-              </div>
-            </div>
           </div>
           <div class="blind-banner" id="blindBanner" hidden>Blind - programming a look here does not affect the real lights</div>
           <div class="editbar" id="editbar" hidden>
@@ -82,13 +65,13 @@
           </div>
           <div class="readout" id="readout"></div>
         </div>
-        <section class="presets" aria-label="Presets">
-          <header>
+        <details class="presets" id="presetsFold" aria-label="Presets">
+          <summary>
             <h3>Presets</h3>
             <p class="hint">Click to apply. Saving stores the look currently shown in the panel.</p>
-          </header>
+          </summary>
           <div class="preset-row" id="presetRow"></div>
-        </section>
+        </details>
       </div>
 
       <aside class="panel" id="panel" aria-label="Look controls">
@@ -97,10 +80,13 @@
           <summary>Selection<span class="meta" id="selCount"></span></summary>
           <div class="body">
             <div class="chips" id="selQuick"></div>
-            <p class="group-lbl">By wall</p>
-            <div class="chips" id="selWalls"></div>
-            <p class="group-lbl">Patterns</p>
-            <div class="chips" id="selMore"></div>
+            <details class="more-sel">
+              <summary>More selections</summary>
+              <p class="group-lbl">By wall</p>
+              <div class="chips" id="selWalls"></div>
+              <p class="group-lbl">Patterns</p>
+              <div class="chips" id="selMore"></div>
+            </details>
             <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
               <button type="button" class="btn sm" id="selClear">Clear selection</button>
               <button type="button" class="btn sm danger" id="selRevert" hidden>Revert selection to default</button>
@@ -137,13 +123,14 @@
         <div class="card" id="randCard"></div>
         <div class="card" id="chimeCard"></div>
       </div>
+      <div class="card" id="battleCard" hidden style="margin-top:16px"></div>
     </div></div>
   </main>
 
   <!-- ===================== CHANNELS ===================== -->
   <main class="view" id="view-channels" role="tabpanel" aria-labelledby="tab-channels" hidden>
     <div class="page"><div class="page-inner">
-      <div class="page-head"><div><h2>Channels</h2><p>Set DMX channels by hand, on top of whatever the look is sending. Overrides stay until you release them or the controller restarts.</p></div></div>
+      <div class="page-head"><div><button type="button" class="btn sm ghost" id="backToSettings" style="margin:0 0 8px -10px">‹ Settings</button><h2>Channels</h2><p>Set DMX channels by hand, on top of whatever the look is sending. Overrides stay until you release them or the controller restarts.</p></div></div>
       <div class="card" id="dmxCard"></div>
     </div></div>
   </main>
@@ -156,7 +143,26 @@
       <div class="card" id="remoteCard"></div>
       <div class="card" id="artnetCard"></div>
       <div class="card" id="peersCard"></div>
-      <div class="card" id="battleCard" hidden></div>
+      <div class="card" id="layoutCard">
+        <header><h3>Layout</h3><p class="hint">Where the fixtures sit on the Live drawing</p></header>
+        <div class="body">
+          <div class="layout-acts" id="layoutMenu">
+            <button type="button" class="btn sm" data-act="edit">Move fixtures…</button>
+            <button type="button" class="btn sm" data-act="new">New layout…</button>
+            <button type="button" class="btn sm" data-act="rename">Rename layout…</button>
+            <button type="button" class="btn sm" data-act="delete">Delete layout…</button>
+            <button type="button" class="btn sm" data-act="add-sel">Add selection to this layout</button>
+            <button type="button" class="btn sm" data-act="remove-sel">Remove selection from this layout</button>
+            <label class="btn sm file">Background image…<input type="file" accept="image/png,image/jpeg" id="bgFile" hidden></label>
+            <button type="button" class="btn sm" data-act="bg-clear">Remove background image</button>
+          </div>
+          <p class="hint" id="layoutCardNote"></p>
+        </div>
+      </div>
+      <div class="card" id="channelsCard">
+        <header><h3>Channels</h3><p class="hint">Set individual DMX channels by hand</p>
+          <div class="actions"><button type="button" class="btn sm" id="openChannels">Open channels</button></div></header>
+      </div>
       <div class="card" id="configCard"></div>
       <div class="card" id="fixturesCard"></div>
     </div></div>

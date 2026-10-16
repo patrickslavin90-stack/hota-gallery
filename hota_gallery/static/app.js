@@ -380,7 +380,8 @@
   function showTab(name) {
     if (!tabs[name]) name = "live";
     for (const [k, el] of Object.entries(tabs)) el.hidden = k !== name;
-    document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+    const lit = name === "channels" ? "settings" : name; // Channels lives under Settings
+    document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === lit));
     if (name === "schedules") openSchedules();
     if (name === "settings") openSettings();
     if (name === "channels") openChannels();
@@ -388,6 +389,8 @@
     if (location.hash.slice(1) !== name) history.replaceState(null, "", name === "live" ? location.pathname : `#${name}`);
   }
   document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  $("#openChannels").addEventListener("click", () => showTab("channels"));
+  $("#backToSettings").addEventListener("click", () => showTab("settings"));
   window.addEventListener("hashchange", () => showTab(location.hash.slice(1) || "live"));
 
   // ===================================================================
@@ -400,6 +403,16 @@
   const DIRS = [["forward", "Forward"], ["reverse", "Reverse"], ["bounce", "Bounce"], ["wings", "Wings"]];
   const AXES = [["x", "Horizontal"], ["y", "Vertical"]];
   const WHITE = { r: 255, g: 255, b: 255, w: 0 }, MAGENTA = { r: 213, g: 19, b: 77, w: 0 }, BLUE = { r: 0, g: 60, b: 255, w: 0 };
+  // One-click solid colours at the top of the colour section. Warm white
+  // is the W channel where the fixtures have one (the stage is RGB only).
+  const QUICK_COLOURS = () => [
+    ["White", WHITE],
+    ["Warm white", venue === "vos" ? { r: 255, g: 170, b: 90, w: 0 } : { r: 0, g: 0, b: 0, w: 255 }],
+    ["Red", { r: 255, g: 0, b: 0, w: 0 }], ["Orange", { r: 255, g: 106, b: 0, w: 0 }], ["Yellow", { r: 255, g: 190, b: 0, w: 0 }],
+    ["Green", { r: 0, g: 220, b: 60, w: 0 }], ["Teal", { r: 0, g: 200, b: 180, w: 0 }], ["Blue", BLUE],
+    ["Purple", { r: 120, g: 30, b: 255, w: 0 }], ["HOTA pink", MAGENTA],
+  ];
+  const swatchCss = c => (c.w && !c.r && !c.g && !c.b ? "#ffe0b0" : `rgb(${c.r},${c.g},${c.b})`);
 
   function defaultLayer(layer, mode, prev) {
     const colours = prev && (prev.stops ? prev.stops.map(s => s.color) : prev.colors || (prev.color ? [prev.color] : null));
@@ -492,8 +505,21 @@
     }
 
     function colourBody(L) {
-      const out = [chips(COLOUR_MODES, L.mode, m => setMode("colour", m))];
-      if (L.mode === "solid") out.push(colourField("Colour", L.color));
+      const same = (a, b) => a && b && ["r", "g", "b", "w"].every(k => (a[k] || 0) === (b[k] || 0));
+      const pickSolid = c => {
+        if (L.mode !== "solid") memory.colour[L.mode] = L;
+        look.colour = c ? { mode: "solid", color: clone(c) } : { mode: "off" };
+        render(); changed();
+      };
+      const out = [h("div", { class: "sw-row" },
+        h("button", { type: "button", class: "sw-btn off", title: "Off", "aria-label": "Off", "aria-pressed": L.mode === "off", onclick: () => pickSolid(null) }),
+        ...QUICK_COLOURS().map(([name, c]) => h("button", {
+          type: "button", class: "sw-btn", title: name, "aria-label": name, style: `background:${swatchCss(c)}`,
+          "aria-pressed": L.mode === "solid" && same(L.color, c), onclick: () => pickSolid(c),
+        })))];
+      if (L.mode === "solid") out.push(colourField("Custom", L.color));
+      out.push(h("p", { class: "colour-more", text: "Moving colour" }),
+        chips(COLOUR_MODES.filter(([m]) => ["gradient", "color_cycle", "sweep"].includes(m)), L.mode, m => setMode("colour", m)));
       if (L.mode === "gradient" || L.mode === "sweep") {
         out.push(selField("Axis", L, "axis", AXES));
         const list = h("div", { class: "stops" });
@@ -1089,7 +1115,7 @@
     $("#view3d").hidden = !on;
     canvas.hidden = on;
     $("#view3dSeg").hidden = !on;
-    $("#viewSeg").hidden = on || !isBuilding();
+    $("#viewSeg").hidden = true;
     document.querySelector('.seg[aria-label="Zoom"]').hidden = on;
     $("#readout").textContent = on ? "Drag to orbit, right-drag to pan, scroll to zoom. This is a visualiser - switch back to the 2D view to change the lighting." : "";
     // 3D is a visualiser, not an editor - no selecting, no look controls,
@@ -1111,17 +1137,15 @@
     const layouts = allLayouts();
     if (!layouts.find(l => l.name === live.layoutName)) live.layoutName = (layouts.find(l => l.name === (scene ? "Street view" : "Building")) || layouts[0] || {}).name || null;
     layoutSelect.replaceChildren(...layouts.map(l => h("option", { value: l.name, text: l.name, selected: l.name === live.layoutName })));
-    const seg = $("#viewSeg");
-    seg.hidden = !isBuilding() || view3dOn;
+    $("#viewSeg").hidden = true; // always the whole drawing
+    // One layout (the usual case): no point showing a menu of one.
+    layoutSelect.hidden = layouts.length < 2;
+    const note = $("#layoutCardNote");
+    if (note) note.textContent = live.layoutName ? `These act on the "${live.layoutName}" layout${layouts.length > 1 ? " (pick another on the Live tab)" : ""}.` : "";
     const can3d = window.HotaView3D && (venue === "vos" ? !!v3d : scene ? isScene() : isBuilding() && b3d);
     $("#toggle3d").hidden = !can3d;
     $("#toggle3d").title = venue === "vos" ? "Rotate around the outdoor stage facade in 3D" : scene ? "Swing left and right along the HOTA Central wall in 3D" : "Rotate around a rough 3D model of the gallery";
     if (view3dOn && !can3d) setView3d(false);
-    if (isBuilding()) {
-      seg.replaceChildren(
-        h("button", { type: "button", "data-view": "all", text: "All", onclick: () => fitView("all") }),
-        ...elev.elevations.map(e => h("button", { type: "button", "data-view": e.name, text: e.name, onclick: () => fitView(e.name) })));
-    }
   }
   layoutSelect.addEventListener("change", async () => {
     if (live.edit && live.dirty && !(await ask({ title: "Discard fixture moves?", message: "You've moved fixtures in this layout without saving. Switching layouts throws those moves away.", ok: "Discard moves", danger: true }))) { layoutSelect.value = live.layoutName; return; }
@@ -1162,16 +1186,13 @@
   });
   $("#editDiscard").addEventListener("click", () => { exitEdit(); });
 
-  const menuBtn = $("#layoutMenuBtn"), menu = $("#layoutMenu");
-  const closeMenu = () => { menu.hidden = true; menuBtn.setAttribute("aria-expanded", "false"); };
-  menuBtn.addEventListener("click", e => { e.stopPropagation(); menu.hidden = !menu.hidden; menuBtn.setAttribute("aria-expanded", String(!menu.hidden)); });
-  document.addEventListener("click", e => { if (!menu.contains(e.target) && e.target !== menuBtn) closeMenu(); });
+  // Layout actions: the Layout card in Settings (kept off the Live toolbar).
+  const menu = $("#layoutMenu");
   menu.addEventListener("click", async e => {
     const act = e.target.closest("button") && e.target.closest("button").dataset.act;
     if (!act) return;
-    closeMenu();
     const layouts = clone(allLayouts()), cur = currentLayout();
-    if (act === "edit") { if (live.edit) exitEdit(); else enterEdit(); }
+    if (act === "edit") { showTab("live"); if (!live.edit) enterEdit(); }
     if (act === "new") {
       const name = ((await ask({ title: "New layout", message: cur ? `It starts as a copy of "${cur.name}".` : "", input: true, placeholder: "Layout name", ok: "Create layout" })) || "").trim();
       if (!name) return;
@@ -1215,7 +1236,6 @@
   $("#bgFile").addEventListener("change", async e => {
     const file = e.target.files[0], cur = currentLayout();
     e.target.value = "";
-    closeMenu();
     if (!file || !cur) return;
     try { await api.putBackground(cur.name, file); cfg = await api.getConfig(); indexConfig(); bgCache.clear(); baseDirty = true; toast("Background image set."); }
     catch (err) { toast(errText(err), true); }
@@ -1249,12 +1269,12 @@
     selGroups = [
       { el: $("#selQuick"), chips: [
         ["All", vis],
-        ...(venue === "building" ? [] : [["Strips", strips]]),
-        [VENUE.dots, dishes],
-        ...zoneNames.filter(z => !["strips", "dishes"].includes(z)).map(z => [z, vis.filter(k => fx(k).zone === z)]),
+        // HOTA Central's bars are all one kind: "All" is the whole choice.
+        ...(venue === "building" ? [] : [["Strips", strips], [VENUE.dots, dishes]]),
       ] },
       { el: $("#selWalls"), chips: elev ? elev.elevations.map(e => [e.name, vis.filter(k => wallOf(k) === e.name)]) : [] },
       { el: $("#selMore"), chips: [
+        ...zoneNames.filter(z => !["strips", "dishes"].includes(z)).map(z => [z, vis.filter(k => fx(k).zone === z)]),
         ...(venue === "gallery" ? [["Strip corners", strips.filter(k => fx(k).led_count === 1)]] : []),
         ...(venue === "building" ? [] : [["Strips, odd", strips.filter((_, i) => i % 2 === 0)], ["Strips, even", strips.filter((_, i) => i % 2 === 1)]]),
         [`${VENUE.dots}, odd`, dishes.filter((_, i) => i % 2 === 0)],
@@ -1512,7 +1532,7 @@
   }
   function openSchedules() {
     if (!sched.draft || !sched.dirty) { sched.draft = clone(cfg.schedule || []); setSchedDirty(false); }
-    renderSchedule(); renderRandomizer(); renderChime();
+    renderSchedule(); renderRandomizer(); renderChime(); renderBattleCard();
   }
   function renderNow() {
     const now = new Date();
@@ -1731,7 +1751,7 @@
     $("#settingsSub").textContent = api.kind === "controller"
       ? "Device and network settings for the lighting controller."
       : "You're in the demo. Settings are saved in this browser, and network details need the real controller.";
-    renderDevice(); renderRemote(); renderArtnet(); renderPeers(); renderBattleCard(); renderConfigCard(); renderFixtures();
+    renderDevice(); renderRemote(); renderArtnet(); renderPeers(); renderConfigCard(); renderFixtures();
   }
 
   // "Scan to connect": a QR code for the address this page is live on right
@@ -1952,6 +1972,7 @@
     const answering = new Set(artnetScan.nodes.flatMap(n => n.universes_out || []));
     const ok = unis.filter(u => answering.has(u)).length;
     lightsEl.dataset.state = ok === unis.length ? "ok" : ok ? "part" : "bad";
+    lightsEl.hidden = ok === unis.length; // all fine: nothing to say on the main page (Settings has the detail)
     lightsEl.querySelector("span").textContent = ok === 0 ? "No lights answering" : `Lights: ${ok}/${unis.length} universes`;
     lightsEl.title = `${artnetScan.nodes.length} Art-Net node${artnetScan.nodes.length === 1 ? "" : "s"} replied at ${artnetScan.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Open Settings for details.`;
   }
@@ -2308,8 +2329,7 @@
     document.body.append(dlg);
     dlg.showModal();
   }
-  document.getElementById("battleBtn").addEventListener("click", openBattleDialog);
-  if (api.kind !== "controller") document.getElementById("battleBtn").hidden = true;
+  // (The Live toolbar's Battle button moved: Schedules' battle card has "Play a match now".)
 
   // ===================================================================
   // Channels: set DMX channels by hand (GET/PUT /api/dmx/<universe>).
