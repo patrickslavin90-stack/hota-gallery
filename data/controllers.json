@@ -1,5 +1,5 @@
 [
   {"device": "gallery", "name": "Gallery", "url": "http://10.38.13.24:8080/"},
   {"device": "vos", "name": "Outdoor stage", "url": "http://10.38.12.58:8080/"},
-  {"device": "building", "name": "Building", "url": "http://10.38.12.240:8080/"}
+  {"device": "building", "name": "HOTA Central", "url": "http://10.38.12.240:8080/"}
 ]

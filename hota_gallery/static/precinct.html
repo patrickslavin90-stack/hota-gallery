@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HOTA Precinct Lighting</title>
+<meta name="description" content="Lighting for the whole HOTA precinct at once: one look everywhere, event days, and one GIF of every venue.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/app.css">
+<style>
+  /* The precinct page: the live card on the left, controls on the right. */
+  .pc { overflow: auto; padding: 16px; }
+  .pc-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; max-width: 1500px; margin: 0 auto; align-items: start; }
+  .pc-preview { width: 100%; height: auto; display: block; border-radius: var(--radius-tile); background: var(--bg); }
+  .pc-venues { display: grid; gap: 8px; margin-top: 12px; }
+  .pc-venue { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-tile); background: var(--surface-2); }
+  .pc-venue i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+  .pc-venue[data-online="false"] i { background: var(--danger); }
+  .pc-venue b { font-weight: 500; }
+  .pc-venue a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+  .pc-venue .hint { margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pc-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pc-sw { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line-2); padding: 0; }
+  .pc-sw[aria-pressed="true"] { border-color: var(--text); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .pc-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .pc-row > label { color: var(--muted); font-size: 12px; min-width: 64px; }
+  .pc-colour { width: 46px; height: 34px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface-2); padding: 2px; }
+  .pc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .pc-msg { margin-top: 10px; font-size: 12px; color: var(--text-2); min-height: 1.4em; }
+  .pc-msg.bad { color: var(--danger); }
+  input[type="date"] { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r); height: 30px; padding: 0 8px; color-scheme: dark; }
+  @media (max-width: 1000px) { .pc-grid { grid-template-columns: 1fr; } body { overflow: auto; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <img src="static/hota-logo.svg" alt="HOTA Home of the Arts" height="18">
+      <span id="pcTitle">Whole precinct</span>
+      <select id="venueSel" class="venue-sel" data-native hidden aria-label="Venue" title="Switch to one venue's own lighting"></select>
+    </div>
+    <span class="spacer" style="flex:1"></span>
+    <div class="status"><div class="clock" id="clock"></div></div>
+  </header>
+
+  <main class="pc">
+    <div class="pc-grid">
+      <section class="card">
+        <header><h3>Live now</h3><p class="hint">Every venue's current look. Refreshes every few seconds.</p>
+          <div class="actions"><button type="button" class="btn primary" id="exportBtn" disabled>Export precinct GIF</button></div></header>
+        <div class="body">
+          <canvas class="pc-preview" id="preview" width="1280" height="720" aria-label="Live preview of every venue's lighting"></canvas>
+          <div class="pc-venues" id="venues"></div>
+          <p class="hint">To give one venue its own look, pick it from the menu next to the logo, set it there, then come back here to export.</p>
+        </div>
+      </section>
+
+      <div>
+        <section class="card">
+          <header><h3>One look everywhere</h3></header>
+          <div class="body">
+            <div class="pc-swatches" id="swatches"></div>
+            <div class="pc-row"><label for="colour">Colour</label><input type="color" id="colour" class="pc-colour" value="#ff6a00"><span class="hint" id="colourHex" style="margin:0"></span></div>
+            <div class="pc-actions">
+              <button type="button" class="btn primary" id="applyAll">Put it live everywhere</button>
+              <button type="button" class="btn" id="clearAll" title="Every venue goes back to whatever its own schedule says">Back to schedules</button>
+            </div>
+            <div class="pc-row"><label for="copyFrom">Or copy</label><select id="copyFrom" aria-label="Venue to copy the look from"></select>
+              <button type="button" class="btn" id="copyAll">to every venue</button></div>
+            <p class="pc-msg" id="lookMsg" role="status"></p>
+          </div>
+        </section>
+
+        <section class="card">
+          <header><h3>Event day</h3><p class="hint">Every venue, on a date</p></header>
+          <div class="body">
+            <p class="hint" style="margin-top:0">Adds a one-off entry to every venue's schedule, in the colour above. It overrides their normal schedules for that window and deletes itself once the day has passed.</p>
+            <div class="pc-row"><label for="evName">Name</label><input type="text" id="evName" placeholder="e.g. Orange day" style="flex:1"></div>
+            <div class="pc-row"><label for="evDate">Date</label><input type="date" id="evDate"></div>
+            <div class="pc-row"><label for="evFrom">From</label><input type="time" id="evFrom" value="17:30"><label for="evTo" style="min-width:0">to</label><input type="time" id="evTo" value="23:59"></div>
+            <div class="pc-actions"><button type="button" class="btn primary" id="schedAll">Schedule on every venue</button></div>
+            <p class="pc-msg" id="schedMsg" role="status"></p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="static/engine.js"></script>
+<script src="static/building-scene.js"></script>
+<script src="static/export.js"></script>
+<script src="static/precinct.js"></script>
+</body>
+</html>

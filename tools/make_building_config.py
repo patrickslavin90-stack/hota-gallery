@@ -44,7 +44,10 @@ def main() -> int:
 
     fixtures, layout = [], {}
     for i in range(args.count):
-        p = [float(i * 100), 0.0]
+        # The "Street view" drawing's spots (building-scene.js layout()):
+        # bars under the parapet, evenly left of the billboard.
+        t = i / (args.count - 1) if args.count > 1 else 0.5
+        p = [round(1.4 + (18.8 - 1.4) * t, 2), -7.95]
         f = {
             "name": f"{args.name} {i + 1}", "led_type": args.type,
             "universe": uni - 1, "address": addr - 1 + i * ch,   # stored 0-indexed, as everywhere
@@ -62,7 +65,7 @@ def main() -> int:
         "fixtures": fixtures, "zones": [],
         "current_look": {"default": off_look(), "fixtures": {}},
         "schedule": [], "presets": gallery.get("presets", []),
-        "layouts": [{"name": "Building", "fixtures": layout}],
+        "layouts": [{"name": "Street view", "fixtures": layout}],
         "peers": peers_for("building"),
         "randomizer": {"enabled": False, "events_per_hour": 20.0, "burst_s": 6.0, "targets": [], "preset_slots": []},
         "clock_chime": {"enabled": False, "look": off_look(), "duration_s": 60.0, "start_hour": 0, "end_hour": 23},

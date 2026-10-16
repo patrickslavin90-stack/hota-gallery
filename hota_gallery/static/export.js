@@ -105,9 +105,12 @@
     const lctx = light.getContext("2d");
     const filterOK = (() => { const t = document.createElement("canvas").getContext("2d"); t.filter = "blur(2px)"; return t.filter === "blur(2px)"; })();
 
-    const u = W / 960; // design unit: everything below is laid out for 960 wide
-    const pad = 36 * u;
-    const headH = 64 * u, footH = 104 * u;
+    // Design unit: everything below is laid out for 960 wide. A bare panel
+    // (one venue inside the precinct card) takes the card's unit instead,
+    // and has no header or footer of its own.
+    const u = job.u || W / 960;
+    const pad = job.bare ? 6 * u : 36 * u;
+    const headH = job.bare ? 0 : 64 * u, footH = job.bare ? 0 : 104 * u;
     const area = { x: pad, y: headH, w: W - pad * 2, h: H - headH - footH };
 
     const building = job.elev && job.layout && job.layout.name === "Building";
@@ -138,14 +141,16 @@
     const base = document.createElement("canvas"); base.width = W; base.height = H;
     const b = base.getContext("2d");
     b.fillStyle = BG; b.fillRect(0, 0, W, H);
+    if (!job.bare) {
     // header
     b.fillStyle = "rgba(245,245,245,.55)"; b.font = `400 ${13 * u}px Rubik, sans-serif`; b.textBaseline = "middle";
-    b.fillText({ vos: "Outdoor Stage Lighting Concept", building: "Building Lighting Concept" }[job.cfg.venue] || "Gallery Façade Lighting Concept", pad, headH / 2);
+    b.fillText({ vos: "Outdoor Stage Lighting Concept", building: "HOTA Central Lighting Concept" }[job.cfg.venue] || "Gallery Façade Lighting Concept", pad, headH / 2);
     if (job.logo) {
       const lh = 20 * u, lw = lh * (job.logo.naturalWidth / job.logo.naturalHeight || 343 / 51);
       b.drawImage(job.logo, W - pad - lw, headH / 2 - lh / 2, lw, lh);
     }
     b.fillStyle = "rgba(245,245,245,.12)"; b.fillRect(pad, headH - 1, W - pad * 2, 1);
+    }
     // elevations
     const path = (polys, close) => {
       b.beginPath();
@@ -186,6 +191,7 @@
       b.fillStyle = "rgba(245,245,245,.6)"; b.font = `500 ${11 * u}px Rubik, sans-serif`; b.textBaseline = "alphabetic";
       b.fillText(e.name, X(e.x0), Y(bottom) + 18 * u);
     }
+    if (!job.bare) {
     // footer: concept name, then the description line
     b.fillStyle = "rgba(245,245,245,.12)"; b.fillRect(pad, H - footH + 14 * u, W - pad * 2, 1);
     b.textBaseline = "alphabetic";
@@ -196,6 +202,7 @@
     b.fillStyle = "rgba(245,245,245,.55)"; b.font = `400 ${13 * u}px Rubik, sans-serif`;
     b.fillText(job.subtitle || "", pad, H - footH + 84 * u);
     b.fillStyle = "#d5134d"; b.fillRect(pad, H - footH + 14 * u, 48 * u, 2 * u);
+    }
 
     // LED positions in card space, per fixture index.
     const fixtures = job.cfg.fixtures;
@@ -267,13 +274,79 @@
   }
 
   // ---------------------------------------------------------------------
+  // The whole precinct on one card: the same header and footer, with each
+  // venue's own drawing (makeRenderer, bare) in its panel - the gallery
+  // across the top, the outdoor stage and HOTA Central side by side below.
+  //   job: { precinct: true, venues: [venue jobs], title, subtitle, logo }
+  // ---------------------------------------------------------------------
+  const PANEL_ORDER = ["gallery", "vos", "building"];
+  const PANEL_NAME = { gallery: "Gallery", vos: "Outdoor stage", building: "HOTA Central" };
+  function makePrecinctRenderer(job, W, H) {
+    const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const u = W / 960, pad = 36 * u, headH = 64 * u, footH = 104 * u;
+    const area = { x: pad, y: headH + 10 * u, w: W - pad * 2, h: H - headH - footH - 10 * u };
+
+    const base = document.createElement("canvas"); base.width = W; base.height = H;
+    const b = base.getContext("2d");
+    b.fillStyle = BG; b.fillRect(0, 0, W, H);
+    b.fillStyle = "rgba(245,245,245,.55)"; b.font = `400 ${13 * u}px Rubik, sans-serif`; b.textBaseline = "middle";
+    b.fillText("HOTA Precinct Lighting Concept", pad, headH / 2);
+    if (job.logo) {
+      const lh = 20 * u, lw = lh * (job.logo.naturalWidth / job.logo.naturalHeight || 343 / 51);
+      b.drawImage(job.logo, W - pad - lw, headH / 2 - lh / 2, lw, lh);
+    }
+    b.fillStyle = "rgba(245,245,245,.12)"; b.fillRect(pad, headH - 1, W - pad * 2, 1);
+    b.fillRect(pad, H - footH + 14 * u, W - pad * 2, 1);
+    b.textBaseline = "alphabetic";
+    b.fillStyle = "#f5f5f5"; b.font = `500 ${30 * u}px Rubik, sans-serif`;
+    let title = job.title || "Untitled concept";
+    while (b.measureText(title).width > W - pad * 2 && title.length > 4) title = title.slice(0, -2).trimEnd() + "…";
+    b.fillText(title, pad, H - footH + 58 * u);
+    b.fillStyle = "rgba(245,245,245,.55)"; b.font = `400 ${13 * u}px Rubik, sans-serif`;
+    b.fillText(job.subtitle || "", pad, H - footH + 84 * u);
+    b.fillStyle = "#d5134d"; b.fillRect(pad, H - footH + 14 * u, 48 * u, 2 * u);
+
+    // Panels: gallery on top, the other two below (60/40 across).
+    const gap = 16 * u, lab = 18 * u, topH = (area.h - gap) * 0.5;
+    const slots = {
+      gallery: { x: area.x, y: area.y, w: area.w, h: topH },
+      vos: { x: area.x, y: area.y + topH + gap, w: (area.w - gap) * 0.6, h: area.h - topH - gap },
+      building: { x: area.x + (area.w - gap) * 0.6 + gap, y: area.y + topH + gap, w: (area.w - gap) * 0.4, h: area.h - topH - gap },
+    };
+    const panels = [];
+    for (const kind of PANEL_ORDER) {
+      const sl = slots[kind], v = job.venues.find(x => x.cfg && x.cfg.venue === kind);
+      b.fillStyle = "rgba(245,245,245,.8)"; b.font = `500 ${12 * u}px Rubik, sans-serif`;
+      b.fillText(v ? v.name : PANEL_NAME[kind], sl.x, sl.y + 12 * u);
+      if (!v) {
+        b.fillStyle = "rgba(245,245,245,.35)"; b.font = `400 ${11 * u}px Rubik, sans-serif`;
+        b.fillText("Not reachable right now", sl.x, sl.y + lab + 16 * u);
+        continue;
+      }
+      const pw = Math.max(16, Math.round(sl.w)), ph = Math.max(16, Math.round(sl.h - lab));
+      panels.push({ x: Math.round(sl.x), y: Math.round(sl.y + lab), R: makeRenderer({ ...v, bare: true, u }, pw, ph) });
+    }
+
+    return {
+      canvas,
+      draw(t) {
+        ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; ctx.filter = "none";
+        ctx.drawImage(base, 0, 0);
+        for (const p of panels) { p.R.draw(t); ctx.drawImage(p.R.canvas, p.x, p.y); }
+      },
+    };
+  }
+  const rendererFor = (job, W, H) => (job.precinct ? makePrecinctRenderer(job, W, H) : makeRenderer(job, W, H));
+
+  // ---------------------------------------------------------------------
   // Encode: one shared palette from a few sample frames (no colour flicker
   // between frames), then every frame mapped onto it.
   // ---------------------------------------------------------------------
   async function encode(job, size, seconds, onProgress, signal) {
     const { GIFEncoder, quantize, applyPalette } = await import(vendorUrl());
     const [W, H] = SIZES[size] || SIZES.medium;
-    const R = makeRenderer(job, W, H);
+    const R = rendererFor(job, W, H);
     const frames = Math.max(2, Math.round((seconds * 1000) / FRAME_MS));
     const step = FRAME_MS / 1000;
 
@@ -307,22 +380,34 @@
   //   opts: { cfg, elev, layout, view, title, subtitle, onDone(msg), onError(msg) }
   // ---------------------------------------------------------------------
   async function open(opts) {
-    const cfg = structuredClone(opts.cfg);
-    const engine = HotaEngine.createEngine(cfg);
-    engine.setCurrentLook(cfg.current_look);
+    // opts.venues (the Precinct page): one card with every venue on it,
+    // each with its own engine; otherwise this controller's own card.
+    const precinct = Array.isArray(opts.venues);
+    const cfg = precinct ? null : structuredClone(opts.cfg);
+    const engine = precinct ? null : HotaEngine.createEngine(cfg);
+    if (engine) engine.setCurrentLook(cfg.current_look);
+    const panels = precinct ? opts.venues.map(v => {
+      const c = structuredClone(v.cfg), e = HotaEngine.createEngine(c);
+      e.setCurrentLook(c.current_look);
+      return { ...v, cfg: c, engine: e, view: "all" };
+    }) : null;
+    const hasScene = precinct ? panels.some(p => p.scene) : !!opts.scene;
     // Open straight away; the logo and fonts are usually preloaded, and if
     // not, the preview redraws the moment they arrive.
     let logo = null;
     const stage = opts.stage ? { ...opts.stage, lines: null } : null;
-    const assetsReady = Promise.all([preload(), stage ? loadImage("vos-wall-lines.png") : null])
-      .then(([l, lines]) => { logo = l; if (stage) stage.lines = lines; if (dlg.isConnected) rebuild(); });
+    let stageLines = null; // the stage's wall linework, for its panel on the precinct card
+    const needLines = stage || (precinct && panels.some(p => p.stage));
+    const assetsReady = Promise.all([preload(), needLines ? loadImage("vos-wall-lines.png") : null])
+      .then(([l, lines]) => { logo = l; stageLines = lines; if (stage) stage.lines = lines; if (dlg.isConnected) rebuild(); });
 
     const views = opts.elev && opts.layout && opts.layout.name === "Building" ? ["all", ...opts.elev.elevations.map(e => e.name)] : ["all"];
-    const state = { title: opts.title || "Untitled concept", subtitle: opts.subtitle || "", view: views.includes(opts.view) ? opts.view : "all", size: "medium", seconds: suggestLength(cfg.current_look) };
+    const seconds = precinct ? Math.max(...panels.map(p => suggestLength(p.cfg.current_look))) : suggestLength(cfg.current_look);
+    const state = { title: opts.title || "Untitled concept", subtitle: opts.subtitle || "", view: views.includes(opts.view) ? opts.view : "all", size: precinct ? "large" : "medium", seconds };
 
     const nameIn = h("input", { type: "text", class: "dlg-input", value: state.title, "aria-label": "Concept name", maxlength: 60 });
     const subIn = h("input", { type: "text", class: "dlg-input", value: state.subtitle, "aria-label": "Description line", maxlength: 90, placeholder: "Description (optional)" });
-    const viewSel = h("select", { "aria-label": "View" }, views.map(v => h("option", { value: v, text: v === "all" ? (cfg.venue === "vos" ? "Whole stage" : "Whole building") : `${v} elevation`, selected: v === state.view })));
+    const viewSel = h("select", { "aria-label": "View" }, views.map(v => h("option", { value: v, text: v === "all" ? (cfg && cfg.venue === "vos" ? "Whole stage" : "Whole building") : `${v} elevation`, selected: v === state.view })));
     const sizeSel = h("select", { "aria-label": "Size" }, Object.entries(SIZES).map(([k, [w, hh]]) => h("option", { value: k, text: `${SIZE_LABEL[k]}, ${w}×${hh}`, selected: k === state.size })));
     const estimate = h("p", { class: "gif-estimate" });
     const updateEstimate = () => {
@@ -343,7 +428,7 @@
     const artIn = h("input", { type: "file", accept: "image/*", "aria-label": "Billboard artwork", style: "display:none" });
     const artName = h("span", { class: "hint", style: "margin:0", text: "HOTA logo" });
     const artClear = h("button", { type: "button", class: "btn", text: "Clear", hidden: true });
-    const artField = opts.scene ? h("div", { class: "gif-field" }, h("span", { text: "Billboard" }),
+    const artField = hasScene ? h("div", { class: "gif-field" }, h("span", { text: "Billboard" }),
       h("div", { class: "gif-row", style: "align-items:center" },
         h("button", { type: "button", class: "btn", text: "Choose artwork…", onclick: () => artIn.click() }), artClear, artName), artIn) : null;
     const cancelBtn = h("button", { type: "button", class: "btn", text: "Close" });
@@ -351,7 +436,9 @@
     const dlg = h("dialog", { class: "dlg dlg-wide", "aria-labelledby": "gifTitle" },
       h("div", { class: "dlg-body" },
         h("h3", { class: "dlg-title", id: "gifTitle", text: "Export as GIF" }),
-        h("p", { class: "dlg-msg", text: "A looping card of the current live look, with the HOTA logo and your concept name, for sending to clients or for approval." }),
+        h("p", { class: "dlg-msg", text: precinct
+          ? "One looping card with every venue's current look, with the HOTA logo and your concept name, for sending to clients or for approval."
+          : "A looping card of the current live look, with the HOTA logo and your concept name, for sending to clients or for approval." }),
         h("div", { class: "gif-grid" },
           h("div", null, preview, bar, status, result),
           h("div", { class: "gif-fields" },
@@ -370,13 +457,15 @@
 
     // Live preview of the card at the chosen settings.
     let previewR = null, raf = 0, t0 = performance.now(), abort = null, url = null;
-    const job = () => ({ cfg, elev: opts.elev, layout: opts.layout, view: state.view, title: state.title, subtitle: state.subtitle, logo, engine, stage, scene: opts.scene || null, artwork });
-    const rebuild = () => { previewR = makeRenderer(job(), 480, 270); };
+    const job = () => precinct
+      ? { precinct: true, venues: panels.map(p => ({ ...p, logo, artwork, stage: p.stage ? { ...p.stage, lines: stageLines } : null })), title: state.title, subtitle: state.subtitle, logo }
+      : { cfg, elev: opts.elev, layout: opts.layout, view: state.view, title: state.title, subtitle: state.subtitle, logo, engine, stage, scene: opts.scene || null, artwork };
+    const rebuild = () => { previewR = rendererFor(job(), 480, 270); };
     rebuild();
     // Follow the live look while the dialog is open: if it changes (a save
     // landing late, the schedule, another browser), the preview and the GIF
     // switch to it within half a second - no need to close and reopen.
-    let lookJSON = JSON.stringify(cfg.current_look), lastCheck = 0;
+    let lookJSON = cfg ? JSON.stringify(cfg.current_look) : "", lastCheck = 0;
     function syncLook() {
       if (!opts.getCurrentLook) return;
       const now = opts.getCurrentLook();
@@ -469,5 +558,19 @@
     return preloaded;
   }
 
-  global.HotaExport = { open, preload };
+  // The precinct card, live: for the Precinct page's preview. venues as
+  // for open(); each gets its own engine on its current look.
+  async function precinctPreview(venues, W, H, title, subtitle) {
+    const [logo, lines] = await Promise.all([preload(), venues.some(v => v.stage) ? loadImage("vos-wall-lines.png") : null]);
+    return makePrecinctRenderer({
+      precinct: true, title, subtitle, logo,
+      venues: venues.map(v => {
+        const c = structuredClone(v.cfg), e = HotaEngine.createEngine(c);
+        e.setCurrentLook(c.current_look);
+        return { ...v, cfg: c, engine: e, view: "all", logo, stage: v.stage ? { ...v.stage, lines } : null };
+      }),
+    }, W, H);
+  }
+
+  global.HotaExport = { open, preload, precinctPreview };
 })(window);

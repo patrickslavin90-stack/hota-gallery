@@ -258,7 +258,7 @@
   const VENUE = {
     gallery: { title: "Gallery façade lighting", dots: "Dishes", staff: "gallery staff", wifi: "gallery Wi-Fi", led: [22, 38] },
     vos: { title: "Outdoor stage lighting", dots: "Dots", staff: "HOTA staff", wifi: "venue Wi-Fi", led: [3, 9] },
-    building: { title: "Building lighting", dots: "Fixtures", staff: "HOTA staff", wifi: "venue Wi-Fi", led: [22, 38] },
+    building: { title: "HOTA Central lighting", dots: "Fixtures", staff: "HOTA staff", wifi: "venue Wi-Fi", led: [22, 38] },
   }[venue] || { title: "Lighting", dots: "Fixtures", staff: "staff", wifi: "Wi-Fi", led: [22, 38] };
   const getJson = async url => { try { return await (await fetch(url, { cache: "no-store" })).json(); } catch { return null; } };
   let b3d = null; // gallery: rough 3D massing derived from the elevation grids (tools/build_3d.py)
@@ -280,7 +280,7 @@
     builtinBuilding = scene.layout(cfg.fixtures);
   }
   document.querySelector(".brand > span").textContent = VENUE.title;
-  document.title = { vos: "HOTA Outdoor Stage Lighting", building: "HOTA Building Lighting" }[venue] || document.title;
+  document.title = { vos: "HOTA Outdoor Stage Lighting", building: "HOTA Central Lighting" }[venue] || document.title;
   // sACN has no poll/reply like ArtPoll, so on the outdoor stage there's
   // nothing to scan: no Lights pill, and the Settings card says what's sent.
   const isSacn = cfg.protocol === "sacn";
@@ -2079,7 +2079,7 @@
   // (battle.py). Start it here; every player plays its part of one script.
   // ===================================================================
   const battleUi = { timer: 0, last: null };
-  const venueTitle = v => ({ gallery: "Gallery", vos: "Outdoor stage", building: "Building" }[v] || cfg.device_name || "This controller");
+  const venueTitle = v => ({ gallery: "Gallery", vos: "Outdoor stage", building: "HOTA Central" }[v] || cfg.device_name || "This controller");
   function showBattle(st) {
     battleUi.last = st;
     const pill = document.getElementById("battlePill");
@@ -2320,7 +2320,8 @@
     let me = null, peers = [];
     try { me = (await (await fetch("/api/status", { cache: "no-store" })).json()).venue_name; peers = await api.getPeers(); } catch { return; }
     if (!me || !peers.length) return;
-    const opts = [{ name: me, online: true }, ...peers];
+    // Plus the whole precinct: one look everywhere, event days, one GIF.
+    const opts = [{ name: me, online: true }, ...peers, { name: "Precinct (all)", online: true }];
     sel.replaceChildren(...opts.map(p => h("option", { value: p.name, text: p.name + (p.online === false ? " (offline)" : ""), selected: p.name === me, disabled: p.online === false })));
     sel.hidden = false;
     document.querySelector(".brand > span").hidden = true; // the dropdown is the title now
@@ -2472,7 +2473,7 @@
   async function renderPeers(editing = false) {
     const card = $("#peersCard");
     clearTimeout(peersTimer);
-    const venueName = v => ({ gallery: "Gallery façade", vos: "Outdoor stage", building: "Building" }[v] || "");
+    const venueName = v => ({ gallery: "Gallery façade", vos: "Outdoor stage", building: "HOTA Central" }[v] || "");
     const editBtn = h("button", { type: "button", class: "btn sm", text: editing ? "Done" : "Edit", onclick: () => renderPeers(!editing) });
     const body = h("div", { class: "body" }, h("p", { class: "hint", style: "margin:0", text: "Checking…" }));
     card.replaceChildren(h("header", null, h("h3", { text: "Other controllers" }), h("div", { class: "actions" }, editBtn)), body);

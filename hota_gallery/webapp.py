@@ -298,7 +298,8 @@ class Store:
 
     # -- light battle ---------------------------------------------------------
 
-    VENUE_NAMES = {"gallery": "Gallery", "vos": "Outdoor stage", "building": "Building"}
+    VENUE_NAMES = {"gallery": "Gallery", "vos": "Outdoor stage", "building": "HOTA Central"}
+    PRECINCT = "Precinct (all)"  # the venue dropdown's whole-precinct page
 
     def battle_status(self) -> Optional[Dict[str, Any]]:
         b = self.engine.battle
@@ -531,6 +532,97 @@ class Store:
             save_config(self.config_path, validated)
             self.engine.reload(validated)
         return self.peers_status()
+
+    # -- the whole precinct: this controller and its peers, from one page ----
+    #
+    # The Precinct page (static/precinct.html) reads every venue's config and
+    # sets looks or event-day schedule entries on all of them at once. Done
+    # here, controller to controller, like peers_status: no cross-origin
+    # rules in the browser, and one answer wherever the page is opened.
+
+    def _venues(self, names: Optional[list] = None) -> List[Dict[str, Any]]:
+        """Me ({"url": None}) and every peer, optionally only those named."""
+        out = [{"name": self.my_name(), "url": None}] + [dict(p) for p in self.engine.cfg.get("peers") or []]
+        return [v for v in out if names is None or v["name"] in names]
+
+    @staticmethod
+    def _peer_call(url: str, method: str, path: str, body: Any = None, timeout: float = 5) -> Any:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url.rstrip("/") + path, data=data, method=method,
+                                     headers={"Content-Type": "application/json"} if data else {})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode() or "null")
+        except urllib.error.HTTPError as exc:
+            try:
+                msg = json.loads(exc.read().decode()).get("error")
+            except Exception:  # noqa: BLE001
+                msg = None
+            raise ConfigError(msg or f"HTTP {exc.code}")
+
+    def _each_venue(self, names: Optional[list], fn) -> List[Dict[str, Any]]:
+        """Run fn(venue) for each venue in parallel; [{name, ok, result|error}]."""
+        venues = self._venues(names)
+        out: List[Dict[str, Any]] = [{"name": v["name"], "ok": False} for v in venues]
+
+        def run(i: int) -> None:
+            try:
+                out[i].update(ok=True, result=fn(venues[i]))
+            except Exception as exc:  # noqa: BLE001 - offline, refused, invalid
+                out[i]["error"] = str(getattr(exc, "reason", exc))
+
+        threads = [threading.Thread(target=run, args=(i,), daemon=True) for i in range(len(venues))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(8)
+        return out
+
+    PRECINCT_KEYS = ("venue", "device_name", "fixtures", "layouts", "current_look", "zones", "presets")
+
+    def precinct_state(self) -> List[Dict[str, Any]]:
+        """Every venue's config (just what drawing and exporting need)."""
+        def read(v: Dict[str, Any]) -> Dict[str, Any]:
+            cfg = self.get_config() if v["url"] is None else self._peer_call(v["url"], "GET", "/api/config")
+            return {k: cfg.get(k) for k in self.PRECINCT_KEYS}
+        return self._each_venue(None, read)
+
+    def precinct_look(self, body: dict) -> List[Dict[str, Any]]:
+        """Put one look live everywhere (or on body["venues"]): it replaces
+        each venue's whole current look, per-fixture looks included."""
+        look = body.get("look")
+        if not isinstance(look, dict):
+            raise ConfigError("look is required")
+        full = {"default": look, "fixtures": {}}
+
+        def put(v: Dict[str, Any]) -> Any:
+            if v["url"] is None:
+                return self.set_current_look(full)
+            return self._peer_call(v["url"], "PUT", "/api/look/full", full)
+        return self._each_venue(body.get("venues"), put)
+
+    def precinct_clear(self, body: dict) -> List[Dict[str, Any]]:
+        """Every venue (or body["venues"]) back to what its schedule says."""
+        def clear(v: Dict[str, Any]) -> Any:
+            if v["url"] is None:
+                return self.clear_to_schedule()
+            return self._peer_call(v["url"], "PUT", "/api/clear", {})
+        return self._each_venue(body.get("venues"), clear)
+
+    def precinct_schedule(self, body: dict) -> List[Dict[str, Any]]:
+        """Add one schedule entry to every venue (or body["venues"]) - an
+        event day, as a priority entry that removes itself once its date has
+        passed (see config.py on priority entries)."""
+        entry = body.get("entry")
+        if not isinstance(entry, dict):
+            raise ConfigError("entry is required")
+
+        def add(v: Dict[str, Any]) -> Any:
+            if v["url"] is None:
+                return len(self.set_schedule(list(self.get_config().get("schedule") or []) + [entry]))
+            cfg = self._peer_call(v["url"], "GET", "/api/config")
+            return len(self._peer_call(v["url"], "PUT", "/api/schedule", list(cfg.get("schedule") or []) + [entry]))
+        return self._each_venue(body.get("venues"), add)
 
     def lighting_network(self) -> Dict[str, Any]:
         """Wired/Wi-Fi ports and the lighting network profile, for Settings."""
@@ -785,7 +877,7 @@ class Handler(BaseHTTPRequestHandler):
             return False
         name = unquote(self.path[len("/venue/"):].split("?")[0])
         self.send_response(303)
-        if any(p["name"] == name for p in self.store.engine.cfg.get("peers", [])):
+        if name == Store.PRECINCT or any(p["name"] == name for p in self.store.engine.cfg.get("peers", [])):
             self.send_header("Set-Cookie", f"hota_venue={quote(name)}; Path=/; SameSite=Lax")
         else:  # our own name (or anything unknown): back to this controller
             self.send_header("Set-Cookie", "hota_venue=; Path=/; Max-Age=0; SameSite=Lax")
@@ -793,6 +885,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
         return True
+
+    def _precinct(self) -> bool:
+        """This browser picked "Precinct (all)": / is the precinct page."""
+        m = re.search(r"(?:^|;\s*)hota_venue=([^;]*)", self.headers.get("Cookie") or "")
+        return bool(m) and unquote(m.group(1)) == Store.PRECINCT
 
     def _relay(self, method: str) -> bool:
         target = self._venue_target()
@@ -825,7 +922,7 @@ class Handler(BaseHTTPRequestHandler):
         if "text/html" in (rh.get("Content-Type") or "") and b'id="venueSel"' not in data and b"</body>" in data:
             # That venue's controller is on an older version with no venue
             # dropdown: add a small one, so nobody gets stuck there.
-            names = [self.store.my_name()] + [p["name"] for p in self.store.engine.cfg.get("peers", [])]
+            names = [self.store.my_name()] + [p["name"] for p in self.store.engine.cfg.get("peers", [])] + [Store.PRECINCT]
             opts = "".join(f'<option value="{quote(n)}"{" selected" if n == name else ""}>{n}</option>' for n in names)
             bar = ('<div id="hotaVenueBar" style="position:fixed;right:12px;bottom:12px;z-index:99999;background:#1c1a1a;border:1px solid #484545;'
                    'border-radius:999px;padding:6px 10px;font:13px system-ui;color:#f5f5f5">Venue '
@@ -856,7 +953,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if self.path in ("/", "/index.html"):
-            self._send_file("index.html")
+            self._send_file("precinct.html" if self._precinct() else "index.html")
         elif self.path.startswith("/static/"):
             self._send_file(self.path[len("/static/") :])
         elif self.path == "/api/status":
@@ -903,6 +1000,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, self.store.lighting_network())
         elif self.path == "/api/peers":
             self._send_json(200, self.store.peers_status())
+        elif self.path == "/api/precinct":
+            self._send_json(200, self.store.precinct_state())
         elif self.path == "/api/battle":
             self._send_json(200, self.store.battle_status())
         elif self.path == "/api/battle/record":
@@ -1000,6 +1099,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, self.store.set_lighting_network(body, self.connection.getsockname()[0]))
             elif self.path == "/api/peers":
                 self._send_json(200, self.store.set_peers(body))
+            elif self.path == "/api/precinct/look":
+                self._send_json(200, self.store.precinct_look(body))
+            elif self.path == "/api/precinct/clear":
+                self._send_json(200, self.store.precinct_clear(body))
+            elif self.path == "/api/precinct/schedule":
+                self._send_json(200, self.store.precinct_schedule(body))
             elif self.path.split("?")[0] == "/api/battle/auto":
                 # From the Settings switch (?both=1): set the opponent too.
                 self._send_json(200, self.store.set_battle_auto(body, propagate="both=1" in self.path))
