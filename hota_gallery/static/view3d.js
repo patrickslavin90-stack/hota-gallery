@@ -210,6 +210,145 @@
     return { toV, centre: new THREE.Vector3(cx, height * 0.4, cz), radius: 0.5 * Math.hypot((maxX - minX) / 1000, height, -minY / 1000) };
   }
 
+  // Main building (HOTA Central side): the street-view sketch
+  // (building-scene.js) stood up as simple blocks - the wall, the roof
+  // behind it and the fly tower with its HOTA sign and mural side - with
+  // the billboard, the HOTA Central sign and a bar fitting per fixture,
+  // each washing the wall below it in its live colour. Metres: sketch x,
+  // up = -sketch y, the street at +z.
+  function canvasTexture(w, h, paint) {
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    paint(cv.getContext("2d"), w, h);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    return t;
+  }
+  function buildStreet(scene, S) {
+    const group = new THREE.Group();
+    const W = S.WALL, wallW = W.x1 - W.x0, wallH = -W.top;
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.55 });
+    const block = (x0, x1, y0, y1, z0, z1, color) => {
+      const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color }));
+      m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(g), edgeMat);
+      e.position.copy(m.position);
+      group.add(m, e);
+      return m;
+    };
+    const face = (tex, x0, x1, y0, y1, z, rotY = 0, cx = null) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, y1 - y0), new THREE.MeshBasicMaterial({ map: tex }));
+      m.position.set(cx != null ? cx : (x0 + x1) / 2, (y0 + y1) / 2, z);
+      m.rotation.y = rotY;
+      group.add(m);
+      return m;
+    };
+
+    // Wall block, roof behind it, fly tower set back.
+    const DEPTH = 26, TOWER = { x0: 8.8, x1: 22.1, z0: -22, z1: -7, h: 15.6 }, ROOF_H = 10.6;
+    block(W.x0, W.x1, 0, wallH, -DEPTH, 0, 0x232120);
+    block(W.x0 + 0.3, W.x1 - 0.3, wallH, ROOF_H - 0.4, -DEPTH, -1.2, 0x1c1b1a);
+    block(TOWER.x0, TOWER.x1, 0, TOWER.h, TOWER.z0, TOWER.z1, 0x2a2827);
+
+    // Wall front: parapet fascia, a dark bay per bar, faint joints.
+    const PX = 64;
+    face(canvasTexture(Math.round(wallW * PX), Math.round(wallH * PX), (c, w, h) => {
+      const X = x => (x - W.x0) * PX, Y = y => (y - W.top) * PX;
+      c.fillStyle = "#2b2927"; c.fillRect(0, 0, w, h);
+      c.strokeStyle = "rgba(245,245,245,.35)"; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(0, Y(W.fascia)); c.lineTo(w, Y(W.fascia)); c.stroke();
+      for (const x of S.BAYS) {
+        c.fillStyle = "#1c1b1a"; c.fillRect(X(x - S.BAY_W / 2), Y(W.fascia), S.BAY_W * PX, h - Y(W.fascia));
+        c.strokeRect(X(x - S.BAY_W / 2), Y(W.fascia), S.BAY_W * PX, h - Y(W.fascia));
+      }
+      c.strokeStyle = "rgba(245,245,245,.08)"; c.lineWidth = 1.5;
+      for (const x of S.BAYS) for (let y = -6.8; y < 0; y += 1.4) { c.beginPath(); c.moveTo(X(x - S.BAY_W / 2), Y(y)); c.lineTo(X(x + S.BAY_W / 2), Y(y)); c.stroke(); }
+    }), W.x0, W.x1, 0, wallH, 0.01);
+
+    // Tower front: the HOTA sign above the roof.
+    const logo = S.logo;
+    const tw = TOWER.x1 - TOWER.x0, th = TOWER.h - ROOF_H;
+    face(canvasTexture(Math.round(tw * PX), Math.round(th * PX), (c, w, h) => {
+      c.fillStyle = "#2a2827"; c.fillRect(0, 0, w, h);
+      if (logo) { const lw = w * 0.78, lh = lw * (logo.naturalHeight / logo.naturalWidth || 51 / 343); c.globalAlpha = 0.8; c.drawImage(logo, (w - lw) / 2, h * 0.45 - lh / 2, lw, lh); }
+    }), TOWER.x0, TOWER.x1, ROOF_H, TOWER.h, TOWER.z1 + 0.01);
+    // Tower west side: the mural, from the sketch's colour blocks.
+    const td = TOWER.z1 - TOWER.z0;
+    face(canvasTexture(Math.round(td * PX), Math.round(th * PX), (c, w, h) => {
+      c.fillStyle = "#2a2827"; c.fillRect(0, 0, w, h);
+      // Sketch x 4.0 (back) .. 8.8 (front corner), y -15.6 (top) .. -10.3 (roof).
+      const U = x => (x - 4.0) / 4.8 * w, V = y => (y + 15.6) / 5.3 * h;
+      for (const [rgb, pts] of S.MURAL) {
+        c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(U(x), V(y)) : c.moveTo(U(x), V(y)))); c.closePath();
+        c.fillStyle = `rgba(${rgb},.55)`; c.fill();
+      }
+    }), TOWER.z0, TOWER.z1, ROOF_H, TOWER.h, 0, -Math.PI / 2, TOWER.x0 - 0.01).position.z = (TOWER.z0 + TOWER.z1) / 2;
+
+    // Billboard (HOTA logo) and the HOTA Central blade sign.
+    const B = S.BILLBOARD, bw = B.x1 - B.x0, bh = B.y1 - B.y0;
+    face(canvasTexture(Math.round(bw * PX), Math.round(bh * PX), (c, w, h) => {
+      c.fillStyle = "#0f0e0e"; c.fillRect(0, 0, w, h);
+      c.strokeStyle = "rgba(245,245,245,.8)"; c.lineWidth = 4; c.strokeRect(2, 2, w - 4, h - 4);
+      if (logo) { const lw = w * 0.62, lh = lw * (logo.naturalHeight / logo.naturalWidth || 51 / 343); c.globalAlpha = 0.75; c.drawImage(logo, (w - lw) / 2, (h - lh) / 2, lw, lh); }
+    }), B.x0, B.x1, -B.y1, -B.y0, 0.12);
+    const L = S.BLADE;
+    block(L.x0, L.x1, -L.y1, -L.y0, 0, 0.3, 0x0f0e0e);
+    face(canvasTexture(Math.round((L.x1 - L.x0) * PX), Math.round((L.y1 - L.y0) * PX), (c, w, h) => {
+      c.fillStyle = "#0f0e0e"; c.fillRect(0, 0, w, h);
+      c.save(); c.translate(w / 2, 0.35 * PX); c.rotate(Math.PI / 2);
+      c.fillStyle = "rgba(245,245,245,.85)"; c.textBaseline = "middle";
+      const fs = w * 0.42;
+      c.font = `700 ${fs}px Rubik, sans-serif`; c.fillText("HOTA", 0, 0);
+      const hw = c.measureText("HOTA ").width;
+      c.font = `400 ${fs}px Rubik, sans-serif`; c.fillText("central", hw, 0);
+      c.restore();
+    }), L.x0, L.x1, -L.y1, -L.y0, 0.31);
+
+    // Street and a faint 5 m grid.
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshBasicMaterial({ color: 0x0b0a0a }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(wallW / 2, -0.02, 0);
+    const grid = new THREE.GridHelper(220, 44, 0x1d1c1b, 0x151414);
+    grid.position.set(wallW / 2, 0, 0);
+    group.add(ground, grid);
+
+    // Bars and their washes, coloured each frame by paint().
+    const washTex = canvasTexture(128, 256, (c, w, h) => {
+      const g = c.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "rgba(255,255,255,.85)"); g.addColorStop(0.35, "rgba(255,255,255,.4)"); g.addColorStop(1, "rgba(255,255,255,.04)");
+      c.fillStyle = g;
+      c.beginPath(); c.moveTo(w * 0.31, 0); c.lineTo(w * 0.69, 0); c.lineTo(w, h); c.lineTo(0, h); c.closePath(); c.fill();
+    });
+    const barGeo = new THREE.BoxGeometry(S.BAR_LEN, S.BAR_H, 0.22);
+    let fittings = [];
+    function setFixtures(list) { // [{fi, x, y}] in sketch metres
+      for (const f of fittings) { group.remove(f.bar, f.wash); f.bar.material.dispose(); f.wash.material.dispose(); f.wash.geometry.dispose(); }
+      fittings = list.map(({ fi, x, y }) => {
+        const top = -y, wh = top;
+        const bar = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color: 0x3f3c3c }));
+        bar.position.set(x, top, 0.2);
+        const wash = new THREE.Mesh(new THREE.PlaneGeometry(2.9, wh), new THREE.MeshBasicMaterial({
+          map: washTex, color: 0x000000, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+        }));
+        wash.position.set(x, top / 2, 0.05);
+        wash.renderOrder = 2; // after the (opaque) wall, from any angle
+        group.add(bar, wash);
+        return { fi, bar, wash };
+      });
+    }
+    function paint(colourOf) { // colourOf(fi) -> [r,g,b] 0-255 or null
+      for (const f of fittings) {
+        const c = colourOf(f.fi);
+        const lit = c && c[0] + c[1] + c[2] > 24;
+        if (lit) f.bar.material.color.setRGB(Math.min(255, c[0]) / 255, Math.min(255, c[1]) / 255, Math.min(255, c[2]) / 255, THREE.SRGBColorSpace);
+        else f.bar.material.color.setHex(0x3f3c3c);
+        if (lit) f.wash.material.color.setRGB(Math.min(255, c[0]) / 255, Math.min(255, c[1]) / 255, Math.min(255, c[2]) / 255, THREE.SRGBColorSpace);
+        else f.wash.material.color.setHex(0x000000);
+      }
+    }
+    scene.add(group);
+    return { setFixtures, paint, centre: new THREE.Vector3(wallW / 2, 6, -4), radius: 0.5 * Math.hypot(wallW, TOWER.h, DEPTH * 0.5) };
+  }
+
   // Glow sprites: soft core + wide halo, additive, depth-tested (the
   // building hides lights round the back) but not depth-writing.
   function glowMaterial(pixelRatio) {
@@ -259,9 +398,16 @@
     controls.maxPolarAngle = Math.PI * 0.495; // stay above ground
     controls.minDistance = 8; controls.maxDistance = 220;
 
-    const stage = src.v3d ? buildStage(scene, src.v3d, src.vb) : null;
+    const street = src.street ? buildStreet(scene, src.street) : null;
+    const stage = !street && src.v3d ? buildStage(scene, src.v3d, src.vb) : null;
     let M = null, roofZ = 0, fp = null, centre;
-    if (stage) {
+    if (street) {
+      centre = street.centre;
+      renderer.domElement.setAttribute("aria-label", "3D view of the HOTA Central wall with live lights. Drag to swing left and right, scroll to zoom.");
+      // Keep to the street side: swing left and right of the wall, not round the back.
+      controls.minAzimuthAngle = -1.25; controls.maxAzimuthAngle = 1.25;
+      controls.maxDistance = 120;
+    } else if (stage) {
       centre = stage.centre;
       renderer.domElement.setAttribute("aria-label", "3D view of the outdoor stage facade with live lights. Drag to orbit, scroll to zoom.");
     } else {
@@ -280,7 +426,16 @@
       const layout = src.getLayout(), fixtures = src.getFixtures();
       samples = [];
       const pos = [], size = [];
+      const bars = [];
       fixtures.forEach((f, fi) => {
+        if (street) {
+          // A bar fitting and its wash (buildStreet), plus a glow at the bar.
+          const p = layout && layout.fixtures[`${f.universe}:${f.address}`];
+          if (!p) return;
+          bars.push({ fi, x: p[0][0], y: p[0][1] });
+          samples.push({ fi, i0: 0, i1: 0, t: 0 }); pos.push(p[0][0], -p[0][1], 0.35); size.push(2400);
+          return;
+        }
         if (stage) {
           // One pixel per fixture; dots drawn bigger than strip pixels.
           const p = src.v3d.fixtures[stageKey(f)];
@@ -326,6 +481,7 @@
       points = new THREE.Points(g, mat);
       points.frustumCulled = false;
       scene.add(points);
+      if (street) street.setFixtures(bars);
     }
     buildLights();
 
@@ -347,12 +503,23 @@
         arr[s * 3] = Math.min(255, r) / 255; arr[s * 3 + 1] = Math.min(255, g) / 255; arr[s * 3 + 2] = Math.min(255, b) / 255;
       }
       col.needsUpdate = true;
+      if (street) street.paint(fi => {
+        const c = prev && prev[fi] && prev[fi].colors[0];
+        return c ? [c[0] + c[3], c[1] + c[3] * 0.96, c[2] + c[3] * 0.88] : null;
+      });
     }
 
     // Camera presets, named from where you stand.
     // Gallery: [east, north] unit direction. Stage: [across, depth] - the
     // audience is at -Y (three.js +z), so "Front" looks straight at the wall.
-    const VIEWS = stage
+    const VIEWS = street
+      ? {
+          // Standing across the street, then off to either end of the wall.
+          "Street": { pos: [16, 1.7, 40], target: [16, 6.5, 0] },
+          "From the left": { pos: [-22, 1.8, 26], target: [7, 6, -4] },
+          "From the right": { pos: [52, 1.8, 26], target: [25, 6, -4] },
+        }
+      : stage
       ? {
           // Eye level out on the lawn, like the photos; then the overviews.
           "Audience": { pos: [0, 1.7, 54], target: [0, 7.5, 0] },
@@ -363,7 +530,7 @@
       : { "North-east": [1, 1], "South-east": [1, -1], "South-west": [-1, -1], "North-west": [-1, 1], "Above": null };
     // Distance that fits the whole building (bounding sphere) in the
     // narrower of the two fields of view, so presets work at any window shape.
-    const radius = stage ? stage.radius : 0.5 * Math.hypot((fp.east - fp.west) / 1000, (fp.north - fp.south) / 1000, roofZ + 4.5);
+    const radius = street ? street.radius : stage ? stage.radius : 0.5 * Math.hypot((fp.east - fp.west) / 1000, (fp.north - fp.south) / 1000, roofZ + 4.5);
     function fitDistance() {
       const v = (camera.fov * Math.PI) / 180, hf = 2 * Math.atan(Math.tan(v / 2) * camera.aspect);
       return (radius / Math.sin(Math.min(v, hf) / 2)) * 1.08;

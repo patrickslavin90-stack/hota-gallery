@@ -832,7 +832,9 @@
     if (live.selection.size) {
       ctx.fillStyle = "rgba(213,19,77,.55)";
       for (const L of leds) if (live.selection.has(L.key)) {
-        ctx.beginPath(); ctx.arc(L.x, L.y, (L.dish ? rDish : r) + 3.5, 0, Math.PI * 2); ctx.fill();
+        if (isScene()) scene.barPath(ctx, L.x, L.y, s, 3.5);
+        else { ctx.beginPath(); ctx.arc(L.x, L.y, (L.dish ? rDish : r) + 3.5, 0, Math.PI * 2); }
+        ctx.fill();
       }
     }
 
@@ -845,7 +847,9 @@
       const c = ledColour(L.fi, L.i);
       const lit = c && (c[0] + c[1] + c[2]) > 24;
       if (!lit) {
-        ctx.beginPath(); ctx.arc(L.x, L.y, L.dish ? rDish * 0.7 : r * 0.6, 0, Math.PI * 2); ctx.fill();
+        if (isScene()) scene.barPath(ctx, L.x, L.y, s);
+        else { ctx.beginPath(); ctx.arc(L.x, L.y, L.dish ? rDish * 0.7 : r * 0.6, 0, Math.PI * 2); }
+        ctx.fill();
         prev = L; continue;
       }
       const col = `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
@@ -856,7 +860,9 @@
         lctx.strokeStyle = col; lctx.lineWidth = r * 1.5; lctx.lineCap = "round";
         lctx.beginPath(); lctx.moveTo(prev.x, prev.y); lctx.lineTo(L.x, L.y); lctx.stroke();
       }
-      lctx.beginPath(); lctx.arc(L.x, L.y, L.dish ? rDish : r, 0, Math.PI * 2); lctx.fill();
+      if (isScene()) scene.barPath(lctx, L.x, L.y, s);
+      else { lctx.beginPath(); lctx.arc(L.x, L.y, L.dish ? rDish : r, 0, Math.PI * 2); }
+      lctx.fill();
       prev = L;
     }
 
@@ -880,7 +886,9 @@
     if (live.hover) {
       const L = live.hover;
       ctx.strokeStyle = "#f5f5f5"; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.arc(L.x, L.y, (L.dish ? rDish : r) + 4, 0, Math.PI * 2); ctx.stroke();
+      if (isScene()) scene.barPath(ctx, L.x, L.y, s, 4);
+      else { ctx.beginPath(); ctx.arc(L.x, L.y, (L.dish ? rDish : r) + 4, 0, Math.PI * 2); }
+      ctx.stroke();
     }
     if (live.marquee) {
       const m = live.marquee;
@@ -955,8 +963,10 @@
   // -- pointer interaction ------------------------------------------------
   function hitTest(px, py) {
     let best = null, bd = 14 * 14;
+    // Building bars: anywhere along the bar counts, not just its centre.
+    const half = isScene() ? scene.BAR_LEN * live.cam.s / 2 : 0;
     for (const L of leds) {
-      const d = (L.x - px) ** 2 + (L.y - py) ** 2;
+      const d = Math.max(0, Math.abs(L.x - px) - half) ** 2 + (L.y - py) ** 2;
       if (d < bd) { bd = d; best = L; }
     }
     return best;
@@ -1061,8 +1071,8 @@
       $("#toggle3d").textContent = "Loading 3D…";
       try {
         view3d = await HotaView3D.create($("#view3d"), {
-          elev, b3d, v3d, vb,
-          getLayout: () => allLayouts().find(l => l.name === "Building"),
+          elev, b3d, v3d, vb, street: scene,
+          getLayout: () => scene ? currentLayout() : allLayouts().find(l => l.name === "Building"),
           getFixtures: () => cfg.fixtures,
           getPreview: () => live.preview,
         });
@@ -1103,9 +1113,9 @@
     layoutSelect.replaceChildren(...layouts.map(l => h("option", { value: l.name, text: l.name, selected: l.name === live.layoutName })));
     const seg = $("#viewSeg");
     seg.hidden = !isBuilding() || view3dOn;
-    const can3d = window.HotaView3D && (venue === "vos" ? !!v3d : isBuilding() && b3d);
+    const can3d = window.HotaView3D && (venue === "vos" ? !!v3d : scene ? isScene() : isBuilding() && b3d);
     $("#toggle3d").hidden = !can3d;
-    $("#toggle3d").title = venue === "vos" ? "Rotate around the outdoor stage facade in 3D" : "Rotate around a rough 3D model of the gallery";
+    $("#toggle3d").title = venue === "vos" ? "Rotate around the outdoor stage facade in 3D" : scene ? "Swing left and right along the HOTA Central wall in 3D" : "Rotate around a rough 3D model of the gallery";
     if (view3dOn && !can3d) setView3d(false);
     if (isBuilding()) {
       seg.replaceChildren(

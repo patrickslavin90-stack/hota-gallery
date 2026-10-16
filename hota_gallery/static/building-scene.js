@@ -180,5 +180,21 @@
     c.restore();
   }
 
-  window.HotaBuildingScene = { box, ready, layout, drawBase, wash, BILLBOARD };
+  // A bar fitting, centred on (x, y) on the canvas: a long thin rounded
+  // rectangle (the shape of a linear wall-wash bar, not its exact size).
+  // grow pads it out (for selection/hover outlines).
+  const BAR_LEN = 1.3, BAR_H = 0.24;
+  function barPath(c, x, y, s, grow = 0) {
+    const w = Math.max(10, BAR_LEN * s) + grow * 2, h = Math.max(3, BAR_H * s) + grow * 2;
+    c.beginPath();
+    if (c.roundRect) c.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
+    else c.rect(x - w / 2, y - h / 2, w, h);
+  }
+
+  window.HotaBuildingScene = {
+    box, ready, layout, drawBase, wash, barPath,
+    // For the 3D view (view3d.js): the same surfaces in metres.
+    WALL, BILLBOARD, BLADE, BARS, BAYS, BAY_W, MURAL, BAR_LEN, BAR_H,
+    get logo() { return logo; },
+  };
 })();

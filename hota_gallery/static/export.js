@@ -237,7 +237,9 @@
           const w = c ? c[3] : 0;
           const rgb = c ? [Math.min(255, c[0] + w), Math.min(255, c[1] + w * 0.96), Math.min(255, c[2] + w * 0.88)] : [0, 0, 0];
           if (rgb[0] + rgb[1] + rgb[2] <= 24) {
-            ctx.beginPath(); ctx.arc(L.x, L.y, L.dish ? rDish * 0.7 : r * 0.6, 0, Math.PI * 2); ctx.fill();
+            if (scene) scene.barPath(ctx, L.x, L.y, s);
+            else { ctx.beginPath(); ctx.arc(L.x, L.y, L.dish ? rDish * 0.7 : r * 0.6, 0, Math.PI * 2); }
+            ctx.fill();
             last = L; continue;
           }
           const col = `rgb(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0})`;
@@ -247,7 +249,9 @@
             lctx.strokeStyle = col; lctx.lineWidth = r * 1.5; lctx.lineCap = "round";
             lctx.beginPath(); lctx.moveTo(last.x, last.y); lctx.lineTo(L.x, L.y); lctx.stroke();
           }
-          lctx.beginPath(); lctx.arc(L.x, L.y, L.dish ? rDish : r, 0, Math.PI * 2); lctx.fill();
+          if (scene) scene.barPath(lctx, L.x, L.y, s);
+          else { lctx.beginPath(); lctx.arc(L.x, L.y, L.dish ? rDish : r, 0, Math.PI * 2); }
+          lctx.fill();
           last = L;
         }
         ctx.globalCompositeOperation = "lighter";
